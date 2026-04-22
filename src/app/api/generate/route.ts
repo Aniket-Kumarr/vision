@@ -8,7 +8,7 @@ import { Blueprint, Domain, Strategy } from '@/lib/types';
 // ---------------------------------------------------------------------------
 
 /** Model used for blueprint generation. Change here to update everywhere. */
-const GENERATION_MODEL = 'claude-sonnet-4-5';
+const GENERATION_MODEL = 'claude-sonnet-4-6';
 
 /**
  * Hard cap on the concept string accepted from the client.
