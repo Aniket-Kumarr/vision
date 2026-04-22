@@ -11,10 +11,10 @@ import { Blueprint, Domain, Strategy } from '@/lib/types';
 const GENERATION_MODEL = 'claude-sonnet-4-5';
 
 /**
- * Hard cap on the concept string accepted from the client.
+ * Hard cap on the concept string accepted from the client (includes rich chip prompts).
  * Prevents runaway prompt-injection payloads and oversized API requests.
  */
-const MAX_CONCEPT_LENGTH = 200;
+const MAX_CONCEPT_LENGTH = 8000;
 
 const client = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -73,9 +73,9 @@ Critical rules:
 - Use blue for secondary supporting elements
 - Use red for critical highlights
 - Use orange for variables and unknowns
-- Make narration sound like 3Blue1Brown — intuitive, visual, elegant
+- Make narration sound like 3Blue1Brown: intuitive, visual, elegant
 - Focus on WHY it works visually, not symbolic manipulation
-- Think like the Visual Math TikTok account — color-coded geometric decomposition
+- Think like the Visual Math TikTok account: color-coded geometric decomposition
 - Every step should have an 'aha moment' feeling
 - duration must be between 600 and 2500 (milliseconds)
 - For curve type: fn must be a valid JavaScript math expression using x (e.g. "Math.sin(x)", "x*x")
@@ -105,15 +105,20 @@ function normalizeConceptKey(concept: string): string {
   return concept.toLowerCase().trim();
 }
 
+/** Skip fuzzy fixture matching for long prompts (e.g. chip briefs) to avoid false positives like "antiderivative" matching "derivative". */
+const MAX_FIXTURE_FUZZY_LEN = 140;
+
 function findFixture(concept: string): Blueprint | null {
   const key = normalizeConceptKey(concept);
   if (FIXTURES[key]) return FIXTURES[key];
 
-  // Fuzzy match
+  if (key.length > MAX_FIXTURE_FUZZY_LEN) return null;
+
+  // Fuzzy match only when the shorter string is long enough to avoid accidental hits.
+  const minLen = 6;
   for (const fixtureKey of Object.keys(FIXTURES)) {
-    if (key.includes(fixtureKey) || fixtureKey.includes(key)) {
-      return FIXTURES[fixtureKey];
-    }
+    if (key.includes(fixtureKey) && fixtureKey.length >= minLen) return FIXTURES[fixtureKey];
+    if (fixtureKey.includes(key) && key.length >= minLen) return FIXTURES[fixtureKey];
   }
   return null;
 }
@@ -220,10 +225,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // In development, always use fixtures to avoid burning API credits.
-    if (process.env.NODE_ENV === 'development') {
-      const devFixture = findFixture(concept) ?? Object.values(FIXTURES)[0];
-      return NextResponse.json({ blueprint: devFixture });
+    // Optional: force fixtures only (no API), useful for offline demos.
+    // Set MATHCANVAS_USE_FIXTURES_ONLY=1 in .env.local
+    if (process.env.MATHCANVAS_USE_FIXTURES_ONLY === '1') {
+      const onlyFixture = findFixture(concept) ?? Object.values(FIXTURES)[0];
+      return NextResponse.json({ blueprint: onlyFixture });
     }
 
     // Check fixtures first (avoids API call for well-known concepts).
@@ -232,16 +238,22 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ blueprint: fixture });
     }
 
-    // No ANTHROPIC_API_KEY in env → fall back to nearest fixture or error.
-    if (!process.env.ANTHROPIC_API_KEY) {
-      const fallback = Object.values(FIXTURES)[0];
-      return NextResponse.json({ blueprint: fallback });
+    // Custom topics need Claude; without a key we only serve pre-built fixtures above.
+    const apiKey = process.env.ANTHROPIC_API_KEY?.trim();
+    if (!apiKey) {
+      return NextResponse.json(
+        {
+          error:
+            'AI generation is not configured. Add ANTHROPIC_API_KEY to .env.local (then restart pnpm dev) to generate a unique visualization for any topic you type.',
+        },
+        { status: 503 },
+      );
     }
 
     const blueprint = await generateWithClaude(concept);
     return NextResponse.json({ blueprint });
   } catch (err) {
-    // SECURITY: never reflect raw Error.message to the client — it can contain
+    // SECURITY: never reflect raw Error.message to the client; it can contain
     // internal paths, SDK version strings, or partial API responses.
     console.error('[/api/generate] unexpected error:', err);
     return NextResponse.json({ error: 'An unexpected error occurred.' }, { status: 500 });

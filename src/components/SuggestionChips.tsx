@@ -1,20 +1,11 @@
 'use client';
 
+import { SUGGESTION_CHIPS } from '@/lib/conceptPrompts';
+
 interface SuggestionChipsProps {
   onSelect: (chip: string) => void;
   disabled?: boolean;
 }
-
-const CHIPS = [
-  'Unit Circle',
-  'Pythagorean Theorem',
-  'Derivatives',
-  'Integrals',
-  'Logarithms',
-  'Parabolas',
-  'Sine Waves',
-  'Area Problems',
-];
 
 export default function SuggestionChips({ onSelect, disabled = false }: SuggestionChipsProps) {
   return (
@@ -23,7 +14,7 @@ export default function SuggestionChips({ onSelect, disabled = false }: Suggesti
       className="flex gap-2 overflow-x-auto pb-1 max-w-2xl"
       style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
     >
-      {CHIPS.map((chip) => (
+      {SUGGESTION_CHIPS.map((chip) => (
         <button
           key={chip}
           type="button"

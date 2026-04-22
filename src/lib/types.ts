@@ -134,7 +134,7 @@ export interface BracketParams {
 }
 
 // ---------------------------------------------------------------------------
-// Discriminated union — `type` narrows `params` unambiguously
+// Discriminated union: `type` narrows `params` unambiguously
 // ---------------------------------------------------------------------------
 
 export type Drawing =
@@ -153,7 +153,7 @@ export type Drawing =
   | { type: 'angle_mark';  color: ChalkColor; params: AngleMarkParams;   duration: number }
   | { type: 'bracket';     color: ChalkColor; params: BracketParams;     duration: number };
 
-/** The discriminant — all valid drawing type strings. */
+/** The discriminant: all valid drawing type strings. */
 export type DrawingType = Drawing['type'];
 
 /** Utility: extract the params type for a given DrawingType. */

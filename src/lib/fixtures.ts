@@ -7,7 +7,8 @@ export const PYTHAGOREAN_THEOREM: Blueprint = {
   steps: [
     {
       id: 1,
-      narration: 'Start with a right triangle — the cornerstone of all geometry. Notice the right angle in the corner.',
+      narration:
+        'Start with a right triangle: the cornerstone of all geometry. Notice the right angle in the corner.',
       drawings: [
         {
           type: 'triangle',
@@ -75,7 +76,8 @@ export const PYTHAGOREAN_THEOREM: Blueprint = {
     },
     {
       id: 3,
-      narration: 'Now build the square on the hypotenuse — the longest side, opposite the right angle.',
+      narration:
+        'Now build the square on the hypotenuse: the longest side, opposite the right angle.',
       drawings: [
         {
           type: 'rect',
@@ -167,7 +169,8 @@ export const UNIT_CIRCLE: Blueprint = {
   steps: [
     {
       id: 1,
-      narration: 'Draw a circle of radius 1 centered at the origin. This is the unit circle — the key to all of trigonometry.',
+      narration:
+        'Draw a circle of radius 1 centered at the origin. This is the unit circle: the key to all of trigonometry.',
       drawings: [
         {
           type: 'axes',
@@ -191,7 +194,8 @@ export const UNIT_CIRCLE: Blueprint = {
     },
     {
       id: 2,
-      narration: 'Pick any point on the circle and draw a line from the center to it — this line makes an angle θ with the x-axis.',
+      narration:
+        'Pick any point on the circle and draw a line from the center to it. This line makes an angle θ with the x-axis.',
       drawings: [
         {
           type: 'line',
@@ -275,7 +279,8 @@ export const UNIT_CIRCLE: Blueprint = {
     },
     {
       id: 5,
-      narration: 'And by the Pythagorean theorem — since the radius is 1 — we always have cos²θ + sin²θ = 1.',
+      narration:
+        'And by the Pythagorean theorem: since the radius is 1, we always have cos²θ + sin²θ = 1.',
       drawings: [
         {
           type: 'triangle',
@@ -293,7 +298,8 @@ export const UNIT_CIRCLE: Blueprint = {
     },
     {
       id: 6,
-      narration: 'As θ rotates around the full circle, sin and cos oscillate between -1 and 1 — generating the sine wave.',
+      narration:
+        'As θ rotates around the full circle, sin and cos oscillate between -1 and 1, generating the sine wave.',
       drawings: [
         {
           type: 'curve',
@@ -325,7 +331,8 @@ export const WHAT_IS_A_DERIVATIVE: Blueprint = {
   steps: [
     {
       id: 1,
-      narration: 'Start with a curve — the function f(x) = x². The derivative asks: how steep is this curve at any given point?',
+      narration:
+        'Start with a curve: the function f(x) = x². The derivative asks: how steep is this curve at any given point?',
       drawings: [
         {
           type: 'axes',
@@ -349,7 +356,8 @@ export const WHAT_IS_A_DERIVATIVE: Blueprint = {
     },
     {
       id: 2,
-      narration: 'Pick two points on the curve. The slope of the line connecting them is called the secant line — a rough average rate of change.',
+      narration:
+        'Pick two points on the curve. The slope of the line connecting them is called the secant line: a rough average rate of change.',
       drawings: [
         {
           type: 'point',
@@ -415,7 +423,8 @@ export const WHAT_IS_A_DERIVATIVE: Blueprint = {
     },
     {
       id: 4,
-      narration: 'In the limit, the secant becomes the tangent — a line touching the curve at exactly one point. That\'s the derivative.',
+      narration:
+        'In the limit, the secant becomes the tangent: a line touching the curve at exactly one point. That\'s the derivative.',
       drawings: [
         {
           type: 'line',
@@ -439,7 +448,8 @@ export const WHAT_IS_A_DERIVATIVE: Blueprint = {
     },
     {
       id: 5,
-      narration: 'For f(x) = x², the derivative is f\'(x) = 2x — at any point x, the slope of the tangent is exactly 2x.',
+      narration:
+        'For f(x) = x², the derivative is f\'(x) = 2x: at any point x, the slope of the tangent is exactly 2x.',
       drawings: [
         {
           type: 'shade',

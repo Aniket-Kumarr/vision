@@ -20,7 +20,7 @@ import {
 
 // --- Chalk rendering constants ---
 
-/** Minimum opacity for a chalk stroke — chalk never goes fully transparent. */
+/** Minimum opacity for a chalk stroke: chalk never goes fully transparent. */
 const CHALK_OPACITY_MIN = 0.82;
 /** How much the opacity varies above the minimum per stroke. */
 const CHALK_OPACITY_RANGE = 0.16;
@@ -220,7 +220,7 @@ export function drawArcChalk(
   const segments = Math.max(Math.floor(r * 0.5), 8);
   // Drive progress purely through drawSegments. Previously totalAngle was
   // computed as fullAngle * progress and then used inside the loop, which
-  // meant each segment's angular size shrank as progress changed — the arc
+  // meant each segment's angular size shrank as progress changed; the arc
   // never actually swept the full [startAngle, endAngle] range at progress=1.
   const drawSegments = Math.floor(segments * progress);
 

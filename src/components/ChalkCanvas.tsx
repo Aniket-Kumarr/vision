@@ -66,7 +66,7 @@ const ChalkCanvas = forwardRef<ChalkCanvasHandle, ChalkCanvasProps>(
     }, [width, height]);
 
     // Returns a 2D context.  We do NOT request willReadFrequently here because
-    // the chalk renderer does not read pixels — only playDrawing/saveState do,
+    // the chalk renderer does not read pixels; only playDrawing/saveState do,
     // and they are infrequent.  Keeping the default lets the browser keep the
     // canvas GPU-accelerated for the draw calls.
     const getCtx = useCallback((): CanvasRenderingContext2D | null => {
@@ -226,7 +226,7 @@ const ChalkCanvas = forwardRef<ChalkCanvasHandle, ChalkCanvasProps>(
     return (
       <canvas
         ref={canvasRef}
-        // Initial logical dimensions — the DPR useEffect will immediately
+        // Initial logical dimensions; the DPR useEffect will immediately
         // replace these with the correct physical pixel values.
         width={width}
         height={height}

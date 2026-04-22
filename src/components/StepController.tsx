@@ -102,7 +102,7 @@ export default function StepController({
           Step {safeStep} of {safeTotal}
         </div>
 
-        {/* Narration text — aria-live so screen readers announce each update */}
+        {/* Narration text: aria-live so screen readers announce each update */}
         <div className="flex-1 text-center px-4">
           <p
             aria-live="polite"
@@ -115,7 +115,7 @@ export default function StepController({
 
         {/* Navigation buttons */}
         <div className="flex-shrink-0 flex items-center gap-3 pointer-events-auto">
-          {/* Back button — hidden on step 1 to avoid a dead affordance */}
+          {/* Back button: hidden on step 1 to avoid a dead affordance */}
           {safeStep > 1 && (
             <button
               onClick={onBack}

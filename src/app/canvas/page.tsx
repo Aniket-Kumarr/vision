@@ -7,11 +7,14 @@ import type { ChalkCanvasHandle } from '@/components/ChalkCanvas';
 import StepController from '@/components/StepController';
 import ChalkParticles from '@/components/ChalkParticles';
 import { Blueprint, Drawing } from '@/lib/types';
+import { MATHCANVAS_CONCEPT_KEY, MATHCANVAS_TOPIC_KEY } from '@/lib/auth';
 
 const ChalkCanvas = dynamic(() => import('@/components/ChalkCanvas'), { ssr: false });
 
 type PageState = 'loading' | 'error' | 'playing';
-const CONCEPT_KEY = 'mathcanvas_concept';
+
+/** Client wait budget: blueprint generation can take well over 15s. */
+const GENERATE_TIMEOUT_MS = 180_000;
 
 export default function CanvasPage() {
   const router = useRouter();
@@ -25,19 +28,28 @@ export default function CanvasPage() {
   const [isAnimating, setIsAnimating] = useState(false);
   const [currentNarration, setCurrentNarration] = useState('');
   const [concept, setConcept] = useState('');
+  const [topicLabel, setTopicLabel] = useState('');
 
   const restartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Load concept from localStorage, then fetch blueprint
   useEffect(() => {
-    const saved = localStorage.getItem(CONCEPT_KEY) ?? localStorage.getItem('vision_concept');
+    const saved =
+      localStorage.getItem(MATHCANVAS_CONCEPT_KEY) ?? localStorage.getItem('vision_concept');
     if (!saved) {
-      router.replace('/');
+      router.replace('/chat');
       return;
     }
+    const topic =
+      localStorage.getItem(MATHCANVAS_TOPIC_KEY) ||
+      (saved.length > 56 ? `${saved.slice(0, 54)}…` : saved);
     setConcept(saved);
+    setTopicLabel(topic);
+    setPageState('loading');
+    setErrorMsg('');
+
     const controller = new AbortController();
-    const requestTimeout = setTimeout(() => controller.abort(), 15000);
+    const requestTimeout = setTimeout(() => controller.abort(), GENERATE_TIMEOUT_MS);
 
     fetch('/api/generate', {
       method: 'POST',
@@ -46,7 +58,17 @@ export default function CanvasPage() {
       signal: controller.signal,
     })
       .then(async (r) => {
-        if (!r.ok) throw new Error(`Server error ${r.status}`);
+        if (!r.ok) {
+          const text = await r.text();
+          let msg = `Request failed (${r.status})`;
+          try {
+            const j = JSON.parse(text) as { error?: string };
+            if (typeof j?.error === 'string' && j.error.trim()) msg = j.error.trim();
+          } catch {
+            if (text.trim()) msg = text.trim().slice(0, 240);
+          }
+          throw new Error(msg);
+        }
 
         // Read the body as a stream so we receive chunks as they arrive from
         // the Anthropic API, rather than waiting for the full response.
@@ -77,7 +99,7 @@ export default function CanvasPage() {
         try {
           data = JSON.parse(cleaned);
         } catch {
-          throw new Error('Failed to parse server response. Please try again.');
+          throw new Error('Could not read the lesson from the server. Please go back and start again.');
         }
 
         // If the server wrapped the blueprint (fixture/fallback path), unwrap it.
@@ -104,12 +126,14 @@ export default function CanvasPage() {
       })
       .catch((err) => {
         if (err.name === 'AbortError') {
-          setErrorMsg('Request timed out. Please try again.');
+          setErrorMsg(
+            'Hang tight. Your visualization is still generating. This can take a few minutes, so stay on this screen.',
+          );
           setPageState('error');
           return;
         }
         console.error(err);
-        setErrorMsg(err.message || 'Something went wrong. Please try again.');
+        setErrorMsg(err.message || 'Something went wrong while loading your lesson.');
         setPageState('error');
       })
       .finally(() => {
@@ -174,7 +198,7 @@ export default function CanvasPage() {
       setCurrentNarration('');
 
       playDrawings(step.drawings, () => {
-        // Drawings done — now type narration
+        // Drawings done; now type narration
         setIsAnimating(false);
         setCurrentNarration(step.narration);
       });
@@ -207,7 +231,7 @@ export default function CanvasPage() {
     if (!blueprint || isAnimating) return;
     const isLast = currentStepIndex >= blueprint.steps.length - 1;
     if (isLast) {
-      router.push('/');
+      router.push('/chat');
       return;
     }
     const nextIdx = currentStepIndex + 1;
@@ -215,7 +239,7 @@ export default function CanvasPage() {
     playStep(nextIdx, blueprint);
   }, [blueprint, currentStepIndex, isAnimating, playStep, router]);
 
-  const handleHome = useCallback(() => router.push('/'), [router]);
+  const handleHome = useCallback(() => router.push('/chat'), [router]);
 
   const handlePrevStep = useCallback(() => {
     if (!blueprint || isAnimating || currentStepIndex <= 0) return;
@@ -233,7 +257,7 @@ export default function CanvasPage() {
     };
   }, []);
 
-  // Keyboard shortcuts — use refs to avoid re-registering on every state change
+  // Keyboard shortcuts: use refs to avoid re-registering on every state change
   const handleNextRef = useRef(handleNext);
   const handleRestartRef = useRef(handleRestart);
   handleNextRef.current = handleNext;
@@ -241,7 +265,7 @@ export default function CanvasPage() {
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') router.push('/');
+      if (e.key === 'Escape') router.push('/chat');
       if (e.key === ' ' || e.key === 'ArrowRight') {
         e.preventDefault();
         handleNextRef.current();
@@ -264,55 +288,65 @@ export default function CanvasPage() {
     >
       {/* Loading state */}
       {pageState === 'loading' && (
-        <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-6">
+        <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-6 px-6">
           <ChalkParticles count={20} />
           <LoadingDots />
-          <p
-            style={{
-              fontFamily: "'Caveat', cursive",
-              fontSize: 22,
-              color: 'rgba(245,240,232,0.5)',
-              letterSpacing: '0.05em',
-            }}
-          >
-            thinking about {concept || 'your concept'}...
-          </p>
+          <div style={{ textAlign: 'center', maxWidth: 440 }}>
+            <p
+              style={{
+                fontFamily: "'Caveat', cursive",
+                fontSize: 28,
+                color: 'rgba(245,240,232,0.92)',
+                letterSpacing: '0.02em',
+                lineHeight: 1.35,
+                marginBottom: 10,
+              }}
+            >
+              Hang tight. Your visualization is generating.
+            </p>
+            <p
+              style={{
+                fontFamily: "'Caveat', cursive",
+                fontSize: 22,
+                color: 'rgba(245,240,232,0.55)',
+                letterSpacing: '0.03em',
+              }}
+            >
+              {topicLabel || concept || 'your topic'}
+            </p>
+          </div>
         </div>
       )}
 
       {/* Error state */}
       {pageState === 'error' && (
-        <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-4 px-6">
+        <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-5 px-6">
           <p
             style={{
               fontFamily: "'Caveat', cursive",
               fontSize: 24,
-              color: '#FF7F7F',
+              color: 'rgba(255, 200, 200, 0.95)',
               textAlign: 'center',
+              maxWidth: 420,
+              lineHeight: 1.35,
             }}
           >
             {errorMsg}
           </p>
-          <button
-            onClick={handleHome}
+          <p
             style={{
               fontFamily: "'Inter', sans-serif",
-              fontWeight: 300,
-              fontSize: 14,
-              color: 'rgba(245,240,232,0.6)',
-              border: '1px solid rgba(245,240,232,0.2)',
-              padding: '8px 20px',
-              borderRadius: 8,
-              background: 'transparent',
-              cursor: 'pointer',
+              fontSize: 12,
+              color: 'rgba(245,240,232,0.38)',
+              letterSpacing: '0.06em',
             }}
           >
-            ← Try another concept
-          </button>
+            Press Escape to return to your topic.
+          </p>
         </div>
       )}
 
-      {/* Chalkboard canvas — fills screen, maintains 800x600 aspect ratio */}
+      {/* Chalkboard canvas: fills screen, maintains 800x600 aspect ratio */}
       {pageState === 'playing' && (
         <div
           className="absolute inset-0 flex items-center justify-center"

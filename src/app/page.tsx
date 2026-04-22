@@ -1,18 +1,9 @@
 'use client';
 
-import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useLayoutEffect, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Image from 'next/image';
-import SuggestionChips from '@/components/SuggestionChips';
-
-const CONCEPT_KEY = 'mathcanvas_concept';
-const USER_KEY = 'mathcanvas_user';
-
-type SignedInUser = {
-  name?: string;
-  email?: string;
-  picture?: string;
-};
+import { motion } from 'framer-motion';
+import { MATHCANVAS_USER_KEY, type MathCanvasUser } from '@/lib/auth';
 
 type GoogleAccounts = {
   id: {
@@ -24,75 +15,111 @@ type GoogleAccounts = {
   };
 };
 
-export default function Page() {
+declare global {
+  interface Window {
+    __mathcanvasGsiClientId?: string;
+  }
+}
+
+/** Keep opacity at 1 in `hidden` so SSR / no-JS never paints an invisible page. */
+const fadeUp = {
+  hidden: { opacity: 1, y: 14 },
+  show: (i: number) => ({
+    opacity: 1,
+    y: 0,
+    transition: { delay: 0.1 * i, duration: 0.55, ease: [0.22, 1, 0.36, 1] as const },
+  }),
+};
+
+export default function HomePage() {
   const router = useRouter();
-  const [concept, setConcept] = useState('');
-  const [isTransitioning, setIsTransitioning] = useState(false);
-  const [user, setUser] = useState<SignedInUser | null>(null);
   const [authError, setAuthError] = useState('');
   const googleButtonRef = useRef<HTMLDivElement>(null);
-  const promptSectionRef = useRef<HTMLElement>(null);
-  const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '';
-
-  const firstName = useMemo(() => {
-    if (!user?.name) return 'there';
-    return user.name.split(' ')[0];
-  }, [user]);
+  const googleClientId = (process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '').trim();
 
   useEffect(() => {
     try {
-      const saved = localStorage.getItem(USER_KEY);
-      if (saved) setUser(JSON.parse(saved) as SignedInUser);
+      const raw = localStorage.getItem(MATHCANVAS_USER_KEY);
+      if (raw) {
+        router.replace('/chat');
+      }
     } catch {
-      // ignore invalid local state
+      // ignore
     }
-  }, []);
+  }, [router]);
 
-  useEffect(() => {
-    if (!googleClientId || !googleButtonRef.current) return;
+  const onGoogleCredential = useCallback(
+    (response: { credential?: string }) => {
+      try {
+        const token = response.credential || '';
+        const payloadPart = token.split('.')[1];
+        if (!payloadPart) throw new Error('Missing token payload');
+        const payload = JSON.parse(atob(payloadPart)) as Record<string, string | undefined>;
+        const signedInUser: MathCanvasUser = {
+          name: payload.name,
+          email: payload.email,
+          picture: payload.picture,
+        };
+        localStorage.setItem(MATHCANVAS_USER_KEY, JSON.stringify(signedInUser));
+        setAuthError('');
+        router.push('/chat');
+      } catch {
+        setAuthError('Google sign-in failed. Please try again.');
+      }
+    },
+    [router],
+  );
 
-    const loadGoogle = () => {
+  useLayoutEffect(() => {
+    if (!googleClientId) return;
+
+    const host = googleButtonRef.current;
+    if (!host) return;
+
+    const mountButton = () => {
+      const el = googleButtonRef.current;
+      if (!el) return;
+
       const g = (window as unknown as { google?: { accounts?: GoogleAccounts } }).google;
-      const buttonEl = googleButtonRef.current;
-      if (!g?.accounts?.id || !buttonEl) return;
+      if (!g?.accounts?.id) return;
 
-      g.accounts.id.initialize({
-        client_id: googleClientId,
-        callback: (response: { credential?: string }) => {
-          try {
-            const token = response.credential || '';
-            const payloadPart = token.split('.')[1];
-            if (!payloadPart) throw new Error('Missing token payload');
-            const payload = JSON.parse(atob(payloadPart));
-            const signedInUser: SignedInUser = {
-              name: payload.name,
-              email: payload.email,
-              picture: payload.picture,
-            };
-            setUser(signedInUser);
-            localStorage.setItem(USER_KEY, JSON.stringify(signedInUser));
-            setAuthError('');
-          } catch {
-            setAuthError('Google sign-in failed. Please try again.');
-          }
-        },
-      });
+      if (window.__mathcanvasGsiClientId !== googleClientId) {
+        g.accounts.id.initialize({
+          client_id: googleClientId,
+          callback: onGoogleCredential,
+        });
+        window.__mathcanvasGsiClientId = googleClientId;
+      }
 
-      buttonEl.innerHTML = '';
-      g.accounts.id.renderButton(buttonEl, {
-        theme: 'outline',
+      el.innerHTML = '';
+      g.accounts.id.renderButton(el, {
+        theme: 'filled_blue',
         size: 'large',
         shape: 'pill',
-        text: 'signin_with',
+        text: 'continue_with',
         logo_alignment: 'left',
-        width: 280,
+        width: 320,
       });
     };
 
-    const existing = document.querySelector('script[data-google-identity="true"]');
-    if (existing) {
-      loadGoogle();
+    const g = (window as unknown as { google?: { accounts?: GoogleAccounts } }).google;
+    if (g?.accounts?.id) {
+      mountButton();
       return;
+    }
+
+    const existing = document.querySelector(
+      'script[data-google-identity="true"]',
+    ) as HTMLScriptElement | null;
+    if (existing) {
+      const w = window as unknown as { google?: { accounts?: GoogleAccounts } };
+      if (w.google?.accounts?.id) {
+        mountButton();
+        return;
+      }
+      const onLoad = () => mountButton();
+      existing.addEventListener('load', onLoad);
+      return () => existing.removeEventListener('load', onLoad);
     }
 
     const script = document.createElement('script');
@@ -100,138 +127,138 @@ export default function Page() {
     script.async = true;
     script.defer = true;
     script.setAttribute('data-google-identity', 'true');
-    script.onload = loadGoogle;
+    script.onload = () => mountButton();
     script.onerror = () => {
-      setAuthError('Google Sign-In script failed to load. Check network/ad-block settings.');
+      setAuthError('Google Sign-In script failed to load. Check network or ad-blockers.');
     };
     document.body.appendChild(script);
-  }, [googleClientId]);
 
-  const submitConcept = (value: string) => {
-    const cleanValue = value.trim();
-    if (!cleanValue || isTransitioning) return;
-    localStorage.setItem(CONCEPT_KEY, cleanValue);
-    setIsTransitioning(true);
-    window.setTimeout(() => router.push('/canvas'), 380);
-  };
-
-  const onSubmit = (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    submitConcept(concept);
-  };
+    return () => {
+      script.onload = null;
+      script.onerror = null;
+    };
+  }, [googleClientId, onGoogleCredential]);
 
   return (
-    <main className={`landing-page ${isTransitioning ? 'is-transitioning' : ''}`}>
+    <main className="landing-page landing-page--home">
+      <motion.div
+        className="landing-glow landing-glow--a"
+        aria-hidden
+        initial={false}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 1.2, ease: 'easeOut' }}
+      />
+      <motion.div
+        className="landing-glow landing-glow--b"
+        aria-hidden
+        initial={false}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 1.2, delay: 0.15, ease: 'easeOut' }}
+      />
+
       <header className="landing-nav">
-        <div className="landing-logo">MathCanvas</div>
-        <div className="landing-nav-actions">
-          {user ? (
-            <button
-              className="ghost-btn"
-              onClick={() => {
-                localStorage.removeItem(USER_KEY);
-                setUser(null);
-              }}
-            >
-              Sign out
-            </button>
-          ) : (
-            <span className="small-muted">AI Math Tutor</span>
-          )}
-        </div>
+        <motion.div
+          className="landing-logo"
+          initial={false}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.45 }}
+        >
+          MathCanvas
+        </motion.div>
+        <motion.span
+          className="landing-nav-tag"
+          initial={false}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.2 }}
+        >
+          Visual math · AI tutor
+        </motion.span>
       </header>
 
-      <section className="landing-hero">
-        <p className="social-proof">Over 1,000 learners use MathCanvas</p>
-        <p className="hero-kicker">Understand math visually</p>
-        <h1 className="hero-title">
-          Learn concepts through
-          <br />
-          interactive chalkboard animation
-        </h1>
-        <p className="hero-subtitle">
-          Ask one concept. Watch each step draw in real time. Build intuition, not just memorization.
-        </p>
+      <section className="landing-hero landing-hero--split">
+        <motion.div
+          className="landing-hero-copy"
+          initial={false}
+          animate="show"
+          variants={{
+            hidden: {},
+            show: { transition: { staggerChildren: 0.12, delayChildren: 0.05 } },
+          }}
+        >
+          <motion.p className="social-proof" variants={fadeUp} custom={0}>
+            Trusted by students & self-learners
+          </motion.p>
+          <motion.p className="hero-kicker" variants={fadeUp} custom={1}>
+            The tutor that draws every step
+          </motion.p>
+          <motion.h1 className="hero-title" variants={fadeUp} custom={2}>
+            Visual math intuition,
+            <br />
+            <span className="hero-title-accent">one chalkboard at a time.</span>
+          </motion.h1>
+          <motion.p className="hero-subtitle" variants={fadeUp} custom={3}>
+            Ask a concept. Watch colorful chalk build the picture step by step, like a teacher at the board,
+            but interactive. No graphing toy: pure geometry and intuition.
+          </motion.p>
+        </motion.div>
 
-        <div className="hero-cta-row">
-          <button
-            className="primary-btn large"
-            onClick={() => promptSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-          >
-            Start for free
-          </button>
-          <button
-            className="ghost-btn large"
-            onClick={() => setConcept('Unit Circle')}
-          >
-            Try Unit Circle
-          </button>
-        </div>
+        <motion.div
+          className="landing-auth-card landing-auth-card--elevated"
+          initial={false}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.35, duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
+        >
+          <p className="auth-card-label">Get started</p>
+          <p className="auth-title">Sign in with Google</p>
+          <p className="small-muted auth-card-sub">
+            Free to try. After sign-in you&apos;ll land in the chat where every lesson begins.
+          </p>
 
-        <div className="landing-auth-card">
-          {!user ? (
-            <>
-              <p className="auth-title">Sign in with Google</p>
-              {googleClientId ? (
-                <div ref={googleButtonRef} />
-              ) : (
-                <p className="small-muted">
-                  Add <code>NEXT_PUBLIC_GOOGLE_CLIENT_ID</code> to <code>.env.local</code> to enable Google sign-in.
-                </p>
-              )}
-              {authError && <p className="auth-error">{authError}</p>}
-            </>
-          ) : (
-            <div className="signed-in-row">
-              {user.picture ? <Image src={user.picture} alt="" width={34} height={34} className="avatar" /> : null}
-              <div>
-                <p className="auth-title">Welcome back, {firstName}</p>
-                <p className="small-muted">{user.email || 'Signed in'}</p>
-              </div>
+          {!googleClientId ? (
+            <div className="google-signin-missing">
+              <p className="small-muted">
+                Set your OAuth 2.0 <strong>Web client ID</strong> in{' '}
+                <code>.env.local</code> as <code>NEXT_PUBLIC_GOOGLE_CLIENT_ID</code>, then restart{' '}
+                <code>pnpm dev</code>.
+              </p>
+              <a
+                className="primary-btn"
+                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', height: 44 }}
+                href="https://console.cloud.google.com/apis/credentials"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Open Google Cloud credentials
+              </a>
             </div>
-          )}
-        </div>
+          ) : null}
 
-        {user ? (
-          <>
-            <section className="prompt-card" ref={promptSectionRef}>
-              <p className="prompt-label">What do you want to understand?</p>
-              <form onSubmit={onSubmit} className="prompt-form">
-                <input
-                  type="text"
-                  value={concept}
-                  onChange={(e) => setConcept(e.target.value)}
-                  disabled={isTransitioning}
-                  placeholder="Try: Why does the unit circle work?"
-                  className="prompt-input"
-                  aria-label="Math concept input"
-                />
-                <button type="submit" disabled={isTransitioning || !concept.trim()} className="primary-btn">
-                  Start Visual Lesson
-                </button>
-              </form>
-              <p className="small-muted">Visual math intuition, one step at a time</p>
-            </section>
+          <div
+            ref={googleButtonRef}
+            className="google-btn-wrap"
+            style={{ display: googleClientId ? 'flex' : 'none' }}
+            aria-hidden={!googleClientId}
+          />
 
-            <div className="chip-wrap">
-              <SuggestionChips
-                disabled={isTransitioning}
-                onSelect={(chip) => {
-                  setConcept(chip);
-                  submitConcept(chip);
-                }}
-              />
-            </div>
-          </>
-        ) : (
-          <div className="locked-card">
-            <p className="locked-title">Sign in to unlock your interactive math tutor</p>
-            <p className="small-muted">After login, you can ask any concept and start a guided visual lesson.</p>
-          </div>
-        )}
+          {authError ? <p className="auth-error">{authError}</p> : null}
+          <ul className="auth-benefits">
+            <li>Step-by-step chalk animations</li>
+            <li>Pick your pace with Next</li>
+            <li>Built for intuition, not memorization</li>
+          </ul>
+        </motion.div>
       </section>
 
-      <div className="transition-shade" />
+      <motion.footer
+        className="landing-footer"
+        initial={false}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.8, duration: 0.5 }}
+      >
+        <span>MathCanvas</span>
+        <span className="landing-footer-dot">·</span>
+        <span>Not a substitute for professional care in a crisis</span>
+      </motion.footer>
     </main>
   );
 }
