@@ -48,25 +48,27 @@ export const PYTHAGOREAN_THEOREM: Blueprint = {
         {
           type: 'rect',
           color: 'blue',
-          params: { x: 200, y: 450, width: 300, height: 90, fill: true },
+          // Side a = 300px (x: 200→500). Square on side a: 300×300, drawn below the base.
+          params: { x: 200, y: 450, width: 300, height: 300, fill: true },
           duration: 1200,
         },
         {
           type: 'text',
           color: 'blue',
-          params: { x: 350, y: 500, content: 'a²', fontSize: 28 },
+          params: { x: 350, y: 530, content: 'a²', fontSize: 28 },
           duration: 600,
         },
         {
           type: 'rect',
           color: 'green',
-          params: { x: 110, y: 200, width: 90, height: 250, fill: true },
+          // Side b = 250px (y: 450→200). Square on side b: 250×250, drawn left of the vertical leg.
+          params: { x: -40, y: 200, width: 250, height: 250, fill: true },
           duration: 1200,
         },
         {
           type: 'text',
           color: 'green',
-          params: { x: 150, y: 330, content: 'b²', fontSize: 28 },
+          params: { x: 85, y: 325, content: 'b²', fontSize: 28 },
           duration: 600,
         },
       ],

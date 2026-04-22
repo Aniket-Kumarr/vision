@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import ChalkParticles from '@/components/ChalkParticles';
 import SuggestionChips from '@/components/SuggestionChips';
 
+const STORAGE_KEY = 'vision_concept';
+
 export default function ChatPage() {
   const [value, setValue] = useState('');
   const [isFocused, setIsFocused] = useState(false);
@@ -19,7 +21,7 @@ export default function ChatPage() {
   const submit = (concept: string) => {
     const trimmed = concept.trim();
     if (!trimmed) return;
-    localStorage.setItem('vision_concept', trimmed);
+    localStorage.setItem(STORAGE_KEY, trimmed);
     router.push('/canvas');
   };
 
@@ -33,7 +35,7 @@ export default function ChatPage() {
   };
 
   return (
-    <div
+    <main
       className="relative flex flex-col items-center justify-center min-h-screen overflow-hidden"
       style={{ background: '#0a0a0a' }}
     >
@@ -82,6 +84,7 @@ export default function ChatPage() {
             onFocus={() => setIsFocused(true)}
             onBlur={() => setIsFocused(false)}
             placeholder="What do you want to understand?"
+            aria-label="Enter a math concept to visualize"
             className="w-full outline-none transition-all duration-300"
             style={{
               background: 'rgba(245,240,232,0.04)',
@@ -104,6 +107,7 @@ export default function ChatPage() {
           {value.trim().length > 0 && (
             <button
               onClick={() => submit(value)}
+              aria-label="Submit concept"
               className="absolute right-4 top-1/2 -translate-y-1/2 text-xs tracking-widest uppercase opacity-50 hover:opacity-100 transition-opacity"
               style={{
                 fontFamily: "'Inter', sans-serif",
@@ -115,7 +119,7 @@ export default function ChatPage() {
                 cursor: 'pointer',
               }}
             >
-              Enter ↵
+              Enter <span aria-hidden="true">↵</span>
             </button>
           )}
         </div>
@@ -142,11 +146,12 @@ export default function ChatPage() {
 
       {/* Subtle vignette */}
       <div
+        aria-hidden="true"
         className="pointer-events-none fixed inset-0 z-0"
         style={{
           background: 'radial-gradient(ellipse at 50% 50%, transparent 40%, rgba(0,0,0,0.5) 100%)',
         }}
       />
-    </div>
+    </main>
   );
 }

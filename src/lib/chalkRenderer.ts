@@ -1,26 +1,84 @@
-import { CHALK_COLORS, ChalkColor } from './types';
+import {
+  CHALK_COLORS,
+  ChalkColor,
+  Drawing,
+  AxesParams,
+  LineParams,
+  DashedLineParams,
+  CircleParams,
+  ArcParams,
+  RectParams,
+  TriangleParams,
+  PointParams,
+  ArrowParams,
+  TextParams,
+  CurveParams,
+  ShadeParams,
+  AngleMarkParams,
+  BracketParams,
+} from './types';
+
+// --- Chalk rendering constants ---
+
+/** Minimum opacity for a chalk stroke — chalk never goes fully transparent. */
+const CHALK_OPACITY_MIN = 0.82;
+/** How much the opacity varies above the minimum per stroke. */
+const CHALK_OPACITY_RANGE = 0.16;
+
+/** Minimum stroke width in pixels for a chalk line. */
+const CHALK_WIDTH_MIN = 2;
+/** Maximum additional width variation in pixels per stroke. */
+const CHALK_WIDTH_JITTER = 1;
+
+/**
+ * Pixels of line length covered by each jittered micro-segment.
+ * Smaller = more granular chalk texture; larger = smoother strokes.
+ */
+const CHALK_SEGMENT_PX = 4;
+/** Minimum number of segments for very short lines so they always render. */
+const CHALK_SEGMENT_MIN = 2;
+
+/** Default pixel radius of positional jitter applied to stroke endpoints. */
+const CHALK_JITTER_DEFAULT = 1;
+
+/**
+ * The handwriting font used by every text-rendering function.
+ * Change this one constant to restyle all chalk labels, axis numbers,
+ * point labels, and text blocks simultaneously.
+ */
+const CHALK_FONT_FAMILY = "'Caveat', cursive";
+
+// --- Primitive helpers ---
 
 function getColor(color: ChalkColor): string {
   return CHALK_COLORS[color];
 }
 
-function jitter(val: number, amount = 1): number {
+function jitter(val: number, amount = CHALK_JITTER_DEFAULT): number {
   return val + (Math.random() - 0.5) * amount * 2;
 }
 
 function chalkOpacity(): number {
-  return 0.82 + Math.random() * 0.16;
+  return CHALK_OPACITY_MIN + Math.random() * CHALK_OPACITY_RANGE;
 }
 
 function chalkWidth(): number {
-  return 2 + Math.random();
+  return CHALK_WIDTH_MIN + Math.random() * CHALK_WIDTH_JITTER;
 }
 
+/**
+ * Converts a 6-digit hex color string and an alpha value to an rgba() string.
+ * Returns a fully-transparent fallback if the hex string is malformed so that
+ * callers receive a valid CSS color rather than `rgba(NaN, NaN, NaN, alpha)`.
+ */
 function hexToRgba(hex: string, alpha: number): string {
+  if (!/^#[0-9a-fA-F]{6}$/.test(hex)) {
+    return `rgba(0, 0, 0, 0)`;
+  }
   const r = parseInt(hex.slice(1, 3), 16);
   const g = parseInt(hex.slice(3, 5), 16);
   const b = parseInt(hex.slice(5, 7), 16);
-  return `rgba(${r},${g},${b},${alpha})`;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
 export function drawLineChalk(
@@ -36,7 +94,7 @@ export function drawLineChalk(
   const dx = x2 - x1;
   const dy = y2 - y1;
   const length = Math.sqrt(dx * dx + dy * dy);
-  const segments = Math.max(Math.floor(length / 4), 2);
+  const segments = Math.max(Math.floor(length / CHALK_SEGMENT_PX), CHALK_SEGMENT_MIN);
   const drawSegments = Math.floor(segments * progress);
 
   ctx.save();
@@ -75,42 +133,36 @@ export function drawDashedLineChalk(
   const dx = x2 - x1;
   const dy = y2 - y1;
   const length = Math.sqrt(dx * dx + dy * dy);
-  const drawLength = length * progress;
+  const gap = dashLength * 0.6;
 
   ctx.save();
   ctx.lineCap = 'round';
-  ctx.setLineDash([dashLength, dashLength * 0.6]);
-  ctx.beginPath();
 
+  // Draw individual dashes manually so we can apply chalk jitter per dash
   let accumulated = 0;
-  const segLen = 3;
-  let drawing = true;
+  let inDash = true;
+  let segStart = { x: x1, y: y1 };
 
-  let cx = x1;
-  let cy = y1;
+  while (accumulated < length * progress) {
+    const segLen = inDash ? dashLength : gap;
+    const end = Math.min(accumulated + segLen, length * progress);
+    const tEnd = end / length;
+    const segEnd = { x: x1 + dx * tEnd, y: y1 + dy * tEnd };
 
-  while (accumulated < drawLength) {
-    const remaining = drawLength - accumulated;
-    const step = Math.min(segLen, remaining);
-    const frac = accumulated / length;
-    const nx = x1 + dx * (frac + step / length);
-    const ny = y1 + dy * (frac + step / length);
-
-    if (drawing) {
-      ctx.moveTo(jitter(cx), jitter(cy));
-      ctx.lineTo(jitter(nx), jitter(ny));
+    if (inDash) {
+      ctx.beginPath();
+      ctx.moveTo(jitter(segStart.x), jitter(segStart.y));
+      ctx.lineTo(jitter(segEnd.x), jitter(segEnd.y));
+      ctx.strokeStyle = hexToRgba(hex, chalkOpacity() * 0.8);
+      ctx.lineWidth = chalkWidth() * 0.85;
+      ctx.stroke();
     }
 
-    cx = nx;
-    cy = ny;
-    accumulated += step;
-    drawing = !drawing;
+    segStart = segEnd;
+    accumulated += segLen;
+    inDash = !inDash;
   }
 
-  ctx.strokeStyle = hexToRgba(hex, chalkOpacity() * 0.8);
-  ctx.lineWidth = chalkWidth() * 0.85;
-  ctx.stroke();
-  ctx.setLineDash([]);
   ctx.restore();
 }
 
@@ -123,8 +175,11 @@ export function drawCircleChalk(
   progress: number
 ): void {
   const hex = getColor(color);
-  const totalAngle = Math.PI * 2 * progress;
   const segments = Math.max(Math.floor(r * 0.8), 20);
+  // drawSegments alone gates progress. The previous totalAngle guard caused
+  // the circle to render only ~progress² of its circumference instead of
+  // exactly `progress` of it, because both the loop bound and the angle check
+  // were independently scaled by progress.
   const drawSegments = Math.floor(segments * progress);
 
   ctx.save();
@@ -133,8 +188,6 @@ export function drawCircleChalk(
   for (let i = 0; i < drawSegments; i++) {
     const startA = -Math.PI / 2 + (i / segments) * Math.PI * 2;
     const endA = -Math.PI / 2 + ((i + 1) / segments) * Math.PI * 2;
-
-    if (endA > -Math.PI / 2 + totalAngle) break;
 
     const sx = jitter(cx + Math.cos(startA) * r);
     const sy = jitter(cy + Math.sin(startA) * r);
@@ -163,16 +216,20 @@ export function drawArcChalk(
   progress: number
 ): void {
   const hex = getColor(color);
-  const totalAngle = (endAngle - startAngle) * progress;
+  const fullAngle = endAngle - startAngle;
   const segments = Math.max(Math.floor(r * 0.5), 8);
+  // Drive progress purely through drawSegments. Previously totalAngle was
+  // computed as fullAngle * progress and then used inside the loop, which
+  // meant each segment's angular size shrank as progress changed — the arc
+  // never actually swept the full [startAngle, endAngle] range at progress=1.
   const drawSegments = Math.floor(segments * progress);
 
   ctx.save();
   ctx.lineCap = 'round';
 
   for (let i = 0; i < drawSegments; i++) {
-    const a0 = startAngle + (i / segments) * totalAngle;
-    const a1 = startAngle + ((i + 1) / segments) * totalAngle;
+    const a0 = startAngle + (i / segments) * fullAngle;
+    const a1 = startAngle + ((i + 1) / segments) * fullAngle;
 
     const sx = jitter(cx + Math.cos(a0) * r);
     const sy = jitter(cy + Math.sin(a0) * r);
@@ -213,9 +270,6 @@ export function drawRectChalk(
 
   let remaining = drawLength;
 
-  ctx.save();
-  ctx.lineCap = 'round';
-
   for (const side of sides) {
     if (remaining <= 0) break;
     const len = Math.sqrt(
@@ -226,12 +280,14 @@ export function drawRectChalk(
     remaining -= len;
   }
 
+  // drawLineChalk manages its own save/restore so no outer save is needed for
+  // the outline loop. We only need a save for the fill operation.
   if (fill && progress === 1) {
+    ctx.save();
     ctx.fillStyle = hexToRgba(hex, 0.12);
     ctx.fillRect(x, y, width, height);
+    ctx.restore();
   }
-
-  ctx.restore();
 }
 
 export function drawTriangleChalk(
@@ -292,17 +348,21 @@ export function drawPointChalk(
   progress: number
 ): void {
   const hex = getColor(color);
+  // Sample opacity once so the dot and its label share the same value.
+  // Two independent chalkOpacity() calls caused them to flicker at different
+  // opacities on every render frame.
+  const opacity = chalkOpacity();
   const r = 4 * progress;
 
   ctx.save();
   ctx.beginPath();
   ctx.arc(x, y, r, 0, Math.PI * 2);
-  ctx.fillStyle = hexToRgba(hex, chalkOpacity());
+  ctx.fillStyle = hexToRgba(hex, opacity);
   ctx.fill();
 
   if (label && progress > 0.7) {
-    ctx.font = `500 14px 'Caveat', cursive`;
-    ctx.fillStyle = hexToRgba(hex, chalkOpacity());
+    ctx.font = `500 14px ${CHALK_FONT_FAMILY}`;
+    ctx.fillStyle = hexToRgba(hex, opacity);
 
     const offset = 16;
     let tx = x;
@@ -375,7 +435,7 @@ export function drawTextChalk(
   const text = content.slice(0, chars);
 
   ctx.save();
-  ctx.font = `500 ${fontSize}px 'Caveat', cursive`;
+  ctx.font = `500 ${fontSize}px ${CHALK_FONT_FAMILY}`;
   ctx.fillStyle = hexToRgba(hex, chalkOpacity());
   ctx.textBaseline = 'middle';
 
@@ -479,7 +539,21 @@ export function drawAngleMarkChalk(
   color: ChalkColor,
   progress: number
 ): void {
-  drawArcChalk(ctx, cx, cy, r, startAngle, endAngle, color, progress);
+  // Normalise the sweep so the arc always travels the short way from
+  // startAngle to endAngle, regardless of how the caller orders them.
+  // Without normalisation, passing (start=1.5, end=0.5) sweeps a reflex arc
+  // (nearly a full circle) instead of the intended ~57 degree angle mark.
+  let sweep = endAngle - startAngle;
+  // Bring sweep into (-2π, 2π]
+  sweep = sweep - Math.floor(sweep / (Math.PI * 2)) * (Math.PI * 2);
+  // If the normalised sweep exceeds π, take the short arc in the opposite
+  // direction so we draw the interior angle, not the exterior.
+  if (sweep > Math.PI) {
+    sweep -= Math.PI * 2;
+  }
+  const normalisedEnd = startAngle + sweep;
+
+  drawArcChalk(ctx, cx, cy, r, startAngle, normalisedEnd, color, progress);
 }
 
 export function drawBracketChalk(
@@ -492,21 +566,63 @@ export function drawBracketChalk(
   color: ChalkColor,
   progress: number
 ): void {
+  const hex = getColor(color);
+  const span = Math.abs(y2 - y1);
+  // Arm length scales with the bracket span so it remains proportional at any
+  // size. Clamped to [6, 20] to stay readable on both tiny and large brackets.
+  const armLen = Math.min(Math.max(span * 0.12, 6), 20);
   const midY = (y1 + y2) / 2;
-  const armLen = 10;
+
+  ctx.save();
+  ctx.strokeStyle = hexToRgba(hex, chalkOpacity());
+  ctx.lineWidth = chalkWidth();
+  ctx.lineCap = 'round';
 
   if (type === 'square') {
     drawLineChalk(ctx, x1 + armLen, y1, x1, y1, color, progress);
     drawLineChalk(ctx, x1, y1, x1, y2, color, progress);
     drawLineChalk(ctx, x1, y2, x1 + armLen, y2, color, progress);
   } else {
-    // Simple curly — top arm, bulge out, middle, bulge in, bottom arm
+    // Curly brace drawn with quadratic bezier curves.
+    // The old implementation used straight drawLineChalk calls which produced
+    // a Z-shape approximation; quadratic curves give the proper brace silhouette.
     drawLineChalk(ctx, x1 + armLen, y1, x1, y1, color, progress);
-    drawLineChalk(ctx, x1, y1, x1 - armLen / 2, midY, color, progress);
-    drawLineChalk(ctx, x1 - armLen / 2, midY, x1, y2, color, progress);
+    if (progress > 0) {
+      const lobeX = x1 - armLen * 0.8;
+      ctx.save();
+      ctx.globalAlpha = Math.min(progress * 2, 1) * chalkOpacity();
+      // Upper lobe: spine curves outward to the midpoint tip
+      ctx.beginPath();
+      ctx.moveTo(jitter(x1), jitter(y1));
+      ctx.quadraticCurveTo(
+        jitter(lobeX), jitter(y1 + (midY - y1) * 0.5),
+        jitter(lobeX), jitter(midY)
+      );
+      ctx.stroke();
+      // Lower lobe: tip curves back inward to the bottom
+      ctx.beginPath();
+      ctx.moveTo(jitter(lobeX), jitter(midY));
+      ctx.quadraticCurveTo(
+        jitter(lobeX), jitter(midY + (y2 - midY) * 0.5),
+        jitter(x1), jitter(y2)
+      );
+      ctx.stroke();
+      ctx.restore();
+    }
     drawLineChalk(ctx, x1, y2, x1 + armLen, y2, color, progress);
   }
+
+  ctx.restore();
 }
+
+// Pixel metrics for axis tick marks and labels expressed as functions of
+// `step`. This keeps ticks and labels proportional when step changes
+// (e.g. step=50 vs step=200) rather than being frozen at arbitrary pixel
+// values that only look right for one particular scale.
+const axisTickHalf = (step: number): number => Math.min(Math.max(step * 0.06, 3), 8);
+const axisLabelOffset = (step: number): number => Math.min(Math.max(step * 0.24, 10), 20);
+// Arrow overshoot past the stated range, also step-proportional.
+const axisArrowOvershoot = (step: number): number => Math.min(Math.max(step * 0.4, 14), 28);
 
 export function drawAxesChalk(
   ctx: CanvasRenderingContext2D,
@@ -522,14 +638,18 @@ export function drawAxesChalk(
   const lineProgress = Math.min(progress * 2, 1);
   const labelsProgress = Math.max(0, (progress - 0.5) * 2);
 
+  const overshoot = axisArrowOvershoot(step);
   // X axis
-  drawArrowChalk(ctx, cx - xRange, cy, cx + xRange + 20, cy, color, lineProgress);
+  drawArrowChalk(ctx, cx - xRange, cy, cx + xRange + overshoot, cy, color, lineProgress);
   // Y axis
-  drawArrowChalk(ctx, cx, cy + yRange, cx, cy - yRange - 20, color, lineProgress);
+  drawArrowChalk(ctx, cx, cy + yRange, cx, cy - yRange - overshoot, color, lineProgress);
 
   if (labelsProgress > 0) {
+    const tick = axisTickHalf(step);
+    const labelGap = axisLabelOffset(step);
+
     ctx.save();
-    ctx.font = `400 12px 'Caveat', cursive`;
+    ctx.font = `400 12px ${CHALK_FONT_FAMILY}`;
     ctx.fillStyle = hexToRgba(hex, 0.7 * labelsProgress);
     ctx.textAlign = 'center';
 
@@ -538,12 +658,12 @@ export function drawAxesChalk(
       if (i === 0) continue;
       const x = cx + i * step;
       ctx.beginPath();
-      ctx.moveTo(x, cy - 4);
-      ctx.lineTo(x, cy + 4);
+      ctx.moveTo(x, cy - tick);
+      ctx.lineTo(x, cy + tick);
       ctx.strokeStyle = hexToRgba(hex, 0.5 * labelsProgress);
       ctx.lineWidth = 1;
       ctx.stroke();
-      ctx.fillText(String(i), x, cy + 16);
+      ctx.fillText(String(i), x, cy + labelGap);
     }
 
     // Y tick marks and labels
@@ -552,18 +672,100 @@ export function drawAxesChalk(
       if (i === 0) continue;
       const y = cy - i * step;
       ctx.beginPath();
-      ctx.moveTo(cx - 4, y);
-      ctx.lineTo(cx + 4, y);
+      ctx.moveTo(cx - tick, y);
+      ctx.lineTo(cx + tick, y);
       ctx.strokeStyle = hexToRgba(hex, 0.5 * labelsProgress);
       ctx.lineWidth = 1;
       ctx.stroke();
-      ctx.fillText(String(i), cx - 8, y + 4);
+      ctx.fillText(String(i), cx - labelGap * 0.5, y + 4);
     }
 
     // Origin label
     ctx.textAlign = 'right';
-    ctx.fillText('0', cx - 8, cy + 16);
+    ctx.fillText('0', cx - labelGap * 0.5, cy + labelGap);
 
     ctx.restore();
+  }
+}
+
+// --- Top-level dispatch ---
+
+/**
+ * Renders a single `Drawing` descriptor onto `ctx` at the given animation
+ * progress (0–1).  All drawing functions are reached through a lookup map
+ * rather than a switch statement, so adding a new DrawingType only requires
+ * one new entry here rather than a new case in every consumer.
+ */
+export function renderDrawing(
+  ctx: CanvasRenderingContext2D,
+  drawing: Drawing,
+  progress: number
+): void {
+  const { type, color, params } = drawing;
+
+  type Handler = (ctx: CanvasRenderingContext2D, p: typeof params, color: ChalkColor, progress: number) => void;
+
+  const handlers: Record<string, Handler> = {
+    axes: (ctx, p, color, progress) => {
+      const { cx, cy, xRange, yRange, step } = p as AxesParams;
+      drawAxesChalk(ctx, cx, cy, xRange, yRange, step, color, progress);
+    },
+    line: (ctx, p, color, progress) => {
+      const { x1, y1, x2, y2 } = p as LineParams;
+      drawLineChalk(ctx, x1, y1, x2, y2, color, progress);
+    },
+    dashed_line: (ctx, p, color, progress) => {
+      const { x1, y1, x2, y2, dashLength } = p as DashedLineParams;
+      drawDashedLineChalk(ctx, x1, y1, x2, y2, dashLength, color, progress);
+    },
+    circle: (ctx, p, color, progress) => {
+      const { cx, cy, r } = p as CircleParams;
+      drawCircleChalk(ctx, cx, cy, r, color, progress);
+    },
+    arc: (ctx, p, color, progress) => {
+      const { cx, cy, r, startAngle, endAngle } = p as ArcParams;
+      drawArcChalk(ctx, cx, cy, r, startAngle, endAngle, color, progress);
+    },
+    rect: (ctx, p, color, progress) => {
+      const { x, y, width, height, fill } = p as RectParams;
+      drawRectChalk(ctx, x, y, width, height, color, fill, progress);
+    },
+    triangle: (ctx, p, color, progress) => {
+      const { x1, y1, x2, y2, x3, y3, fill } = p as TriangleParams;
+      drawTriangleChalk(ctx, x1, y1, x2, y2, x3, y3, color, fill, progress);
+    },
+    point: (ctx, p, color, progress) => {
+      const { x, y, label, labelPosition } = p as PointParams;
+      drawPointChalk(ctx, x, y, label, labelPosition, color, progress);
+    },
+    arrow: (ctx, p, color, progress) => {
+      const { x1, y1, x2, y2 } = p as ArrowParams;
+      drawArrowChalk(ctx, x1, y1, x2, y2, color, progress);
+    },
+    text: (ctx, p, color, progress) => {
+      const { x, y, content, fontSize } = p as TextParams;
+      drawTextChalk(ctx, x, y, content, fontSize, color, progress);
+    },
+    curve: (ctx, p, color, progress) => {
+      const { fn, xMin, xMax, yScale, yOffset } = p as CurveParams;
+      drawCurveChalk(ctx, fn, xMin, xMax, yScale, yOffset, color, progress);
+    },
+    shade: (ctx, p, color, progress) => {
+      const { points, opacity } = p as ShadeParams;
+      drawShadeChalk(ctx, points, opacity, color, progress);
+    },
+    angle_mark: (ctx, p, color, progress) => {
+      const { cx, cy, r, startAngle, endAngle } = p as AngleMarkParams;
+      drawAngleMarkChalk(ctx, cx, cy, r, startAngle, endAngle, color, progress);
+    },
+    bracket: (ctx, p, color, progress) => {
+      const { x1, y1, x2, y2, type } = p as BracketParams;
+      drawBracketChalk(ctx, x1, y1, x2, y2, type, color, progress);
+    },
+  };
+
+  const handler = handlers[type];
+  if (handler) {
+    handler(ctx, params, color, progress);
   }
 }

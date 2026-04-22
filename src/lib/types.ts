@@ -11,24 +11,12 @@ export const CHALK_COLORS: Record<ChalkColor, string> = {
   cyan: '#7FFFEF',
 };
 
-export type DrawingType =
-  | 'axes'
-  | 'line'
-  | 'dashed_line'
-  | 'circle'
-  | 'arc'
-  | 'rect'
-  | 'triangle'
-  | 'point'
-  | 'arrow'
-  | 'text'
-  | 'curve'
-  | 'shade'
-  | 'angle_mark'
-  | 'bracket';
-
 export type Domain = 'algebra' | 'geometry' | 'trigonometry' | 'calculus' | 'statistics' | 'linear_algebra';
 export type Strategy = 'decomposition' | 'transformation' | 'accumulation' | 'relationship';
+
+// ---------------------------------------------------------------------------
+// Per-drawing-type parameter shapes
+// ---------------------------------------------------------------------------
 
 export interface AxesParams {
   cx: number;
@@ -50,6 +38,7 @@ export interface DashedLineParams {
   y1: number;
   x2: number;
   y2: number;
+  /** Length of each dash in pixels. */
   dashLength: number;
 }
 
@@ -103,10 +92,12 @@ export interface TextParams {
   x: number;
   y: number;
   content: string;
+  /** Font size in pixels. Must be a positive integer. */
   fontSize: number;
 }
 
 export interface CurveParams {
+  /** A JavaScript expression in `x` evaluated via `new Function`. E.g. `"x * x"`. */
   fn: string;
   xMin: number;
   xMax: number;
@@ -115,10 +106,17 @@ export interface CurveParams {
 }
 
 export interface ShadeParams {
+  /** At least 3 vertices forming a closed polygon. */
   points: [number, number][];
+  /** Fill opacity between 0 and 1. */
   opacity: number;
 }
 
+/**
+ * Draws a small arc to mark an angle at a vertex.
+ * Structurally identical to ArcParams but kept separate so the discriminated
+ * union on `Drawing` can route to the correct renderer function.
+ */
 export interface AngleMarkParams {
   cx: number;
   cy: number;
@@ -135,28 +133,31 @@ export interface BracketParams {
   type: 'square' | 'curly';
 }
 
-export type DrawingParams =
-  | AxesParams
-  | LineParams
-  | DashedLineParams
-  | CircleParams
-  | ArcParams
-  | RectParams
-  | TriangleParams
-  | PointParams
-  | ArrowParams
-  | TextParams
-  | CurveParams
-  | ShadeParams
-  | AngleMarkParams
-  | BracketParams;
+// ---------------------------------------------------------------------------
+// Discriminated union — `type` narrows `params` unambiguously
+// ---------------------------------------------------------------------------
 
-export interface Drawing {
-  type: DrawingType;
-  color: ChalkColor;
-  params: DrawingParams;
-  duration: number;
-}
+export type Drawing =
+  | { type: 'axes';        color: ChalkColor; params: AxesParams;       duration: number }
+  | { type: 'line';        color: ChalkColor; params: LineParams;        duration: number }
+  | { type: 'dashed_line'; color: ChalkColor; params: DashedLineParams;  duration: number }
+  | { type: 'circle';      color: ChalkColor; params: CircleParams;      duration: number }
+  | { type: 'arc';         color: ChalkColor; params: ArcParams;         duration: number }
+  | { type: 'rect';        color: ChalkColor; params: RectParams;        duration: number }
+  | { type: 'triangle';    color: ChalkColor; params: TriangleParams;    duration: number }
+  | { type: 'point';       color: ChalkColor; params: PointParams;       duration: number }
+  | { type: 'arrow';       color: ChalkColor; params: ArrowParams;       duration: number }
+  | { type: 'text';        color: ChalkColor; params: TextParams;        duration: number }
+  | { type: 'curve';       color: ChalkColor; params: CurveParams;       duration: number }
+  | { type: 'shade';       color: ChalkColor; params: ShadeParams;       duration: number }
+  | { type: 'angle_mark';  color: ChalkColor; params: AngleMarkParams;   duration: number }
+  | { type: 'bracket';     color: ChalkColor; params: BracketParams;     duration: number };
+
+/** The discriminant — all valid drawing type strings. */
+export type DrawingType = Drawing['type'];
+
+/** Utility: extract the params type for a given DrawingType. */
+export type ParamsFor<T extends DrawingType> = Extract<Drawing, { type: T }>['params'];
 
 export interface Step {
   id: number;

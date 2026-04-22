@@ -25,6 +25,8 @@ export default function CanvasPage() {
   const [isAnimating, setIsAnimating] = useState(false);
   const [currentNarration, setCurrentNarration] = useState('');
 
+  const restartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // Load concept from localStorage, then fetch blueprint
   useEffect(() => {
     const saved = localStorage.getItem('vision_concept');
@@ -34,22 +36,35 @@ export default function CanvasPage() {
     }
     setConcept(saved);
 
+    const controller = new AbortController();
+
     fetch('/api/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ concept: saved }),
+      signal: controller.signal,
     })
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error(`Server error ${r.status}`);
+        return r.json();
+      })
       .then((data) => {
         if (data.error) throw new Error(data.error);
-        setBlueprint(data.blueprint as Blueprint);
+        const bp = data.blueprint as Blueprint;
+        if (!bp || !Array.isArray(bp.steps) || bp.steps.length === 0) {
+          throw new Error('Received an empty blueprint. Please try again.');
+        }
+        setBlueprint(bp);
         setPageState('playing');
       })
       .catch((err) => {
+        if (err.name === 'AbortError') return;
         console.error(err);
         setErrorMsg(err.message || 'Something went wrong. Please try again.');
         setPageState('error');
       });
+
+    return () => controller.abort();
   }, [router]);
 
   // Play a sequence of drawings one after another
@@ -101,8 +116,7 @@ export default function CanvasPage() {
     if (pageState === 'playing' && blueprint) {
       playStep(0, blueprint);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pageState, blueprint]);
+  }, [pageState, blueprint, playStep]);
 
   const handleRestart = useCallback(() => {
     if (!blueprint) return;
@@ -110,7 +124,12 @@ export default function CanvasPage() {
     setCurrentStepIndex(0);
     setCurrentNarration('');
     setIsAnimating(false);
-    setTimeout(() => playStep(0, blueprint), 50);
+    // A single rAF-length delay lets the canvas clear before the first draw frame.
+    if (restartTimerRef.current !== null) clearTimeout(restartTimerRef.current);
+    restartTimerRef.current = setTimeout(() => {
+      restartTimerRef.current = null;
+      playStep(0, blueprint);
+    }, 50);
   }, [blueprint, playStep]);
 
   const handleNext = useCallback(() => {
@@ -123,6 +142,13 @@ export default function CanvasPage() {
   }, [blueprint, currentStepIndex, isAnimating, playStep, handleRestart]);
 
   const handleBack = useCallback(() => router.push('/'), [router]);
+
+  // Cancel any pending restart timer on unmount
+  useEffect(() => {
+    return () => {
+      if (restartTimerRef.current !== null) clearTimeout(restartTimerRef.current);
+    };
+  }, []);
 
   // Keyboard shortcuts — use refs to avoid re-registering on every state change
   const handleNextRef = useRef(handleNext);

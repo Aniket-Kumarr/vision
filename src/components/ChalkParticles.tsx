@@ -11,20 +11,24 @@ interface Particle {
   vy: number;
   life: number;
   maxLife: number;
-  color: string;
+  // Decomposed RGBA so we never build a string per frame
+  r: number;
+  g: number;
+  b: number;
 }
 
-const CHALK_DUST_COLORS = [
-  'rgba(245,240,232,',
-  'rgba(255,224,102,',
-  'rgba(127,217,127,',
-  'rgba(107,191,255,',
+// Pre-parsed RGB values matching the original chalk-dust palette
+const CHALK_DUST_COLORS: [number, number, number][] = [
+  [245, 240, 232], // warm white
+  [255, 224, 102], // yellow
+  [127, 217, 127], // green
+  [107, 191, 255], // blue
 ];
 
 export default function ChalkParticles({ count = 30, className = '' }: { count?: number; className?: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const particlesRef = useRef<Particle[]>([]);
-  const animRef = useRef<number>(0);
+  const animRef = useRef<number | null>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -37,10 +41,11 @@ export default function ChalkParticles({ count = 30, className = '' }: { count?:
       canvas.height = canvas.offsetHeight;
     };
     resize();
-    window.addEventListener('resize', resize);
+    // passive: true avoids blocking the browser's scroll/paint pipeline
+    window.addEventListener('resize', resize, { passive: true });
 
     const spawnParticle = (): Particle => {
-      const colorBase = CHALK_DUST_COLORS[Math.floor(Math.random() * CHALK_DUST_COLORS.length)];
+      const [r, g, b] = CHALK_DUST_COLORS[Math.floor(Math.random() * CHALK_DUST_COLORS.length)];
       return {
         x: Math.random() * canvas.width,
         y: canvas.height * (0.4 + Math.random() * 0.5),
@@ -50,38 +55,49 @@ export default function ChalkParticles({ count = 30, className = '' }: { count?:
         vy: -(0.3 + Math.random() * 0.6),
         life: 0,
         maxLife: 120 + Math.random() * 180,
-        color: colorBase,
+        r,
+        g,
+        b,
       };
     };
 
-    // Initial particles
+    // Reset array on every effect run so count changes don't stack particles
+    particlesRef.current = [];
     for (let i = 0; i < count; i++) {
       const p = spawnParticle();
-      p.life = Math.random() * p.maxLife;
+      p.life = Math.random() * p.maxLife; // stagger initial lifetimes
       particlesRef.current.push(p);
     }
 
     const animate = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      particlesRef.current.forEach((p, i) => {
+      const particles = particlesRef.current;
+      for (let i = 0; i < particles.length; i++) {
+        const p = particles[i];
         p.life++;
         p.x += p.vx;
         p.y += p.vy;
         p.vy -= 0.003;
 
+        if (p.life >= p.maxLife) {
+          particles[i] = spawnParticle();
+          continue;
+        }
+
         const lifeRatio = p.life / p.maxLife;
+        // Use globalAlpha instead of building a string with toFixed every frame
         const alpha = p.opacity * (1 - lifeRatio) * Math.sin(lifeRatio * Math.PI);
 
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = `rgb(${p.r},${p.g},${p.b})`;
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-        ctx.fillStyle = `${p.color}${alpha.toFixed(3)})`;
         ctx.fill();
+      }
 
-        if (p.life >= p.maxLife) {
-          particlesRef.current[i] = spawnParticle();
-        }
-      });
+      // Restore default alpha so other canvas consumers aren't affected
+      ctx.globalAlpha = 1;
 
       animRef.current = requestAnimationFrame(animate);
     };
@@ -89,7 +105,10 @@ export default function ChalkParticles({ count = 30, className = '' }: { count?:
     animate();
 
     return () => {
-      cancelAnimationFrame(animRef.current);
+      if (animRef.current !== null) {
+        cancelAnimationFrame(animRef.current);
+        animRef.current = null;
+      }
       window.removeEventListener('resize', resize);
     };
   }, [count]);
