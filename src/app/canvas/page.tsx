@@ -185,7 +185,16 @@ export default function CanvasPage() {
     playStep(nextIdx, blueprint);
   }, [blueprint, currentStepIndex, isAnimating, playStep, handleRestart]);
 
-  const handleBack = useCallback(() => router.push('/'), [router]);
+  const handleHome = useCallback(() => router.push('/'), [router]);
+
+  const handlePrevStep = useCallback(() => {
+    if (!blueprint || isAnimating || currentStepIndex <= 0) return;
+    const prevIdx = currentStepIndex - 1;
+    canvasRef.current?.reset();
+    setCurrentStepIndex(prevIdx);
+    setCurrentNarration('');
+    playStep(prevIdx, blueprint);
+  }, [blueprint, isAnimating, currentStepIndex, playStep]);
 
   // Cancel any pending restart timer on unmount
   useEffect(() => {
@@ -255,7 +264,7 @@ export default function CanvasPage() {
             {errorMsg}
           </p>
           <button
-            onClick={handleBack}
+            onClick={handleHome}
             style={{
               fontFamily: "'Inter', sans-serif",
               fontWeight: 300,
@@ -325,7 +334,7 @@ export default function CanvasPage() {
             {blueprint.title}
           </h2>
           <button
-            onClick={handleBack}
+            onClick={handleHome}
             className="relative hover:opacity-100 transition-opacity"
             style={{
               fontFamily: "'Inter', sans-serif",
@@ -352,7 +361,7 @@ export default function CanvasPage() {
           isAnimating={isAnimating}
           isLastStep={currentStepIndex >= blueprint.steps.length - 1}
           onNext={handleNext}
-          onBack={handleBack}
+          onBack={handlePrevStep}
         />
       )}
 

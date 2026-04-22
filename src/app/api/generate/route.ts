@@ -258,9 +258,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Check fixtures first (avoids API call in dev).
-    // Fixtures are returned as a one-shot JSON stream so the client-side
-    // reader works identically for both paths.
+    // In development, always use fixtures to avoid burning API credits.
+    if (process.env.NODE_ENV === 'development') {
+      const devFixture = findFixture(concept) ?? Object.values(FIXTURES)[0];
+      return NextResponse.json({ blueprint: devFixture });
+    }
+
+    // Check fixtures first (avoids API call for well-known concepts).
     const fixture = findFixture(concept);
     if (fixture) {
       return NextResponse.json({ blueprint: fixture });
