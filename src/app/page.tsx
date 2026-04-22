@@ -3,10 +3,21 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
-import SuggestionChips from '@/components/SuggestionChips';
+import { AnimatePresence, motion } from 'framer-motion';
+import ChalkboardPreview from '@/components/ChalkboardPreview';
 
 const CONCEPT_KEY = 'mathcanvas_concept';
 const USER_KEY = 'mathcanvas_user';
+
+const CHIPS = [
+  'Unit Circle',
+  'Pythagorean Theorem',
+  'Derivatives',
+  'Integrals',
+  'Logarithms',
+  'Parabolas',
+  'Sine Waves',
+];
 
 type SignedInUser = {
   name?: string;
@@ -24,6 +35,15 @@ type GoogleAccounts = {
   };
 };
 
+const fadeUp = {
+  hidden: { opacity: 0, y: 14 },
+  visible: (i: number = 0) => ({
+    opacity: 1,
+    y: 0,
+    transition: { delay: 0.08 + i * 0.07, duration: 0.6, ease: [0.2, 0.8, 0.2, 1] as const },
+  }),
+};
+
 export default function Page() {
   const router = useRouter();
   const [concept, setConcept] = useState('');
@@ -31,7 +51,7 @@ export default function Page() {
   const [user, setUser] = useState<SignedInUser | null>(null);
   const [authError, setAuthError] = useState('');
   const googleButtonRef = useRef<HTMLDivElement>(null);
-  const promptSectionRef = useRef<HTMLElement>(null);
+  const promptRef = useRef<HTMLDivElement>(null);
   const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '';
 
   const firstName = useMemo(() => {
@@ -83,9 +103,9 @@ export default function Page() {
         theme: 'outline',
         size: 'large',
         shape: 'pill',
-        text: 'signin_with',
+        text: 'continue_with',
         logo_alignment: 'left',
-        width: 280,
+        width: 260,
       });
     };
 
@@ -112,7 +132,7 @@ export default function Page() {
     if (!cleanValue || isTransitioning) return;
     localStorage.setItem(CONCEPT_KEY, cleanValue);
     setIsTransitioning(true);
-    window.setTimeout(() => router.push('/canvas'), 380);
+    window.setTimeout(() => router.push('/canvas'), 420);
   };
 
   const onSubmit = (e: FormEvent<HTMLFormElement>) => {
@@ -120,116 +140,317 @@ export default function Page() {
     submitConcept(concept);
   };
 
+  const scrollToPrompt = () => {
+    if (user) {
+      promptRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } else {
+      document.getElementById('signin-panel')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  };
+
   return (
-    <main className={`landing-page ${isTransitioning ? 'is-transitioning' : ''}`}>
-      <header className="landing-nav">
-        <div className="landing-logo">MathCanvas</div>
-        <div className="landing-nav-actions">
-          {user ? (
-            <button
-              className="ghost-btn"
-              onClick={() => {
-                localStorage.removeItem(USER_KEY);
-                setUser(null);
-              }}
-            >
-              Sign out
-            </button>
-          ) : (
-            <span className="small-muted">AI Math Tutor</span>
-          )}
-        </div>
-      </header>
-
-      <section className="landing-hero">
-        <p className="social-proof">Over 1,000 learners use MathCanvas</p>
-        <p className="hero-kicker">Understand math visually</p>
-        <h1 className="hero-title">
-          Learn concepts through
-          <br />
-          interactive chalkboard animation
-        </h1>
-        <p className="hero-subtitle">
-          Ask one concept. Watch each step draw in real time. Build intuition, not just memorization.
-        </p>
-
-        <div className="hero-cta-row">
-          <button
-            className="primary-btn large"
-            onClick={() => promptSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-          >
-            Start for free
-          </button>
-          <button
-            className="ghost-btn large"
-            onClick={() => setConcept('Unit Circle')}
-          >
-            Try Unit Circle
-          </button>
-        </div>
-
-        <div className="landing-auth-card">
-          {!user ? (
-            <>
-              <p className="auth-title">Sign in with Google</p>
-              {googleClientId ? (
-                <div ref={googleButtonRef} />
-              ) : (
-                <p className="small-muted">
-                  Add <code>NEXT_PUBLIC_GOOGLE_CLIENT_ID</code> to <code>.env.local</code> to enable Google sign-in.
-                </p>
-              )}
-              {authError && <p className="auth-error">{authError}</p>}
-            </>
-          ) : (
-            <div className="signed-in-row">
-              {user.picture ? <Image src={user.picture} alt="" width={34} height={34} className="avatar" /> : null}
-              <div>
-                <p className="auth-title">Welcome back, {firstName}</p>
-                <p className="small-muted">{user.email || 'Signed in'}</p>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {user ? (
-          <>
-            <section className="prompt-card" ref={promptSectionRef}>
-              <p className="prompt-label">What do you want to understand?</p>
-              <form onSubmit={onSubmit} className="prompt-form">
-                <input
-                  type="text"
-                  value={concept}
-                  onChange={(e) => setConcept(e.target.value)}
-                  disabled={isTransitioning}
-                  placeholder="Try: Why does the unit circle work?"
-                  className="prompt-input"
-                  aria-label="Math concept input"
-                />
-                <button type="submit" disabled={isTransitioning || !concept.trim()} className="primary-btn">
-                  Start Visual Lesson
-                </button>
-              </form>
-              <p className="small-muted">Visual math intuition, one step at a time</p>
-            </section>
-
-            <div className="chip-wrap">
-              <SuggestionChips
-                disabled={isTransitioning}
-                onSelect={(chip) => {
-                  setConcept(chip);
-                  submitConcept(chip);
-                }}
-              />
-            </div>
-          </>
-        ) : (
-          <div className="locked-card">
-            <p className="locked-title">Sign in to unlock your interactive math tutor</p>
-            <p className="small-muted">After login, you can ask any concept and start a guided visual lesson.</p>
+    <main className={`landing ${isTransitioning ? 'is-transitioning' : ''}`}>
+      <div className="landing-inner">
+        {/* NAV */}
+        <motion.nav
+          className="nav"
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, ease: [0.2, 0.8, 0.2, 1] }}
+        >
+          <div className="nav-brand">
+            <span className="nav-brand-mark" />
+            MathCanvas
           </div>
-        )}
-      </section>
+          <div className="nav-links">
+            <a className="nav-link" href="#how">
+              How it works
+            </a>
+            <a className="nav-link" href="#topics">
+              Topics
+            </a>
+            <a className="nav-link" href="#signin-panel">
+              {user ? 'Account' : 'Sign in'}
+            </a>
+          </div>
+          <button className="nav-cta" onClick={scrollToPrompt}>
+            {user ? 'Start a lesson' : 'Try for free'}
+            <span aria-hidden>→</span>
+          </button>
+        </motion.nav>
+
+        {/* HERO */}
+        <section className="hero">
+          <div className="hero-grid">
+            <div>
+              <motion.div
+                className="hero-eyebrow"
+                variants={fadeUp}
+                initial="hidden"
+                animate="visible"
+                custom={0}
+              >
+                <span className="hero-eyebrow-dot" />
+                Live interactive lessons · 1,000+ learners
+              </motion.div>
+
+              <motion.h1
+                className="hero-title"
+                variants={fadeUp}
+                initial="hidden"
+                animate="visible"
+                custom={1}
+              >
+                The math tutor
+                <br />
+                that <span className="italic">draws</span>{' '}
+                <span className="underline-word">itself.</span>
+              </motion.h1>
+
+              <motion.p
+                className="hero-sub"
+                variants={fadeUp}
+                initial="hidden"
+                animate="visible"
+                custom={2}
+              >
+                Ask one concept. Watch each step draw in real time on an interactive chalkboard.
+                Build intuition, not just memorization — from unit circles to integrals.
+              </motion.p>
+
+              <motion.div
+                className="hero-cta-row"
+                variants={fadeUp}
+                initial="hidden"
+                animate="visible"
+                custom={3}
+              >
+                <button className="btn btn-primary" onClick={scrollToPrompt}>
+                  Start for free
+                  <span className="btn-arrow" aria-hidden>
+                    →
+                  </span>
+                </button>
+                <button
+                  className="btn btn-ghost"
+                  onClick={() => {
+                    setConcept('Unit Circle');
+                    if (user) submitConcept('Unit Circle');
+                    else scrollToPrompt();
+                  }}
+                >
+                  Try Unit Circle
+                </button>
+              </motion.div>
+
+              <motion.div
+                className="hero-meta"
+                variants={fadeUp}
+                initial="hidden"
+                animate="visible"
+                custom={4}
+              >
+                <span>
+                  Press <kbd>Enter</kbd> to draw
+                </span>
+                <span aria-hidden>·</span>
+                <span>No credit card required</span>
+              </motion.div>
+            </div>
+
+            <motion.div
+              className="hero-visual"
+              initial={{ opacity: 0, scale: 0.96 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.8, delay: 0.25, ease: [0.2, 0.8, 0.2, 1] }}
+            >
+              <div className="visual-label">
+                <span className="visual-label-dot" />
+                Drawing · Unit Circle
+              </div>
+              <ChalkboardPreview />
+              <div className="visual-caption">
+                &ldquo;Every curve tells a story — here&rsquo;s the one behind sin &amp; cos.&rdquo;
+              </div>
+            </motion.div>
+          </div>
+
+          {/* SIGN-IN / PROMPT PANEL */}
+          <motion.div
+            id="signin-panel"
+            className="panel"
+            variants={fadeUp}
+            initial="hidden"
+            animate="visible"
+            custom={5}
+          >
+            <AnimatePresence mode="wait">
+              {!user ? (
+                <motion.div
+                  key="signed-out"
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6 }}
+                  transition={{ duration: 0.35 }}
+                  style={{ display: 'contents' }}
+                >
+                  <div>
+                    <p className="panel-title">Sign in to start a visual lesson</p>
+                    <p className="panel-sub">
+                      Your progress and past lessons stay synced across devices.
+                    </p>
+                    {authError && <p className="auth-error">{authError}</p>}
+                  </div>
+                  <div className="panel-action">
+                    {googleClientId ? (
+                      <div ref={googleButtonRef} />
+                    ) : (
+                      <p className="panel-sub">
+                        Add <code>NEXT_PUBLIC_GOOGLE_CLIENT_ID</code> to <code>.env.local</code>.
+                      </p>
+                    )}
+                  </div>
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="signed-in"
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6 }}
+                  transition={{ duration: 0.35 }}
+                  style={{ display: 'contents' }}
+                >
+                  <div className="signed-in">
+                    {user.picture ? (
+                      <Image src={user.picture} alt="" width={38} height={38} className="avatar" />
+                    ) : null}
+                    <div>
+                      <p className="panel-title">Welcome back, {firstName}</p>
+                      <p className="panel-sub">{user.email || 'Signed in'}</p>
+                    </div>
+                  </div>
+                  <div className="panel-action">
+                    <button
+                      className="btn btn-ghost"
+                      onClick={() => {
+                        localStorage.removeItem(USER_KEY);
+                        setUser(null);
+                      }}
+                    >
+                      Sign out
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.div>
+
+          {/* PROMPT (after sign-in) */}
+          <AnimatePresence>
+            {user && (
+              <motion.div
+                key="prompt"
+                ref={promptRef}
+                className="prompt-wrap"
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 8 }}
+                transition={{ duration: 0.45, ease: [0.2, 0.8, 0.2, 1] }}
+              >
+                <p className="prompt-label">What do you want to understand?</p>
+                <form onSubmit={onSubmit} className="prompt-form">
+                  <input
+                    type="text"
+                    value={concept}
+                    onChange={(e) => setConcept(e.target.value)}
+                    disabled={isTransitioning}
+                    placeholder="Try: Why does the unit circle work?"
+                    className="prompt-input"
+                    aria-label="Math concept"
+                  />
+                  <button
+                    type="submit"
+                    disabled={isTransitioning || !concept.trim()}
+                    className="btn btn-primary"
+                  >
+                    {isTransitioning ? 'Drawing…' : 'Start visual lesson'}
+                    <span className="btn-arrow" aria-hidden>
+                      →
+                    </span>
+                  </button>
+                </form>
+
+                <div className="chip-row" id="topics">
+                  {CHIPS.map((chip) => (
+                    <button
+                      key={chip}
+                      type="button"
+                      disabled={isTransitioning}
+                      onClick={() => {
+                        setConcept(chip);
+                        submitConcept(chip);
+                      }}
+                      className="chip"
+                    >
+                      {chip}
+                    </button>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </section>
+
+        {/* FEATURES */}
+        <section className="features" id="how">
+          <div className="features-head">
+            <div>
+              <p className="features-kicker">How it works</p>
+              <h2 className="features-title">
+                Learn by <span className="italic">watching</span> the math happen.
+              </h2>
+            </div>
+          </div>
+
+          <div className="features-grid">
+            {[
+              {
+                num: '01',
+                title: 'Ask a concept',
+                body: 'Type any idea — "derivatives," "Pythagoras," "why π" — or pick from common topics.',
+              },
+              {
+                num: '02',
+                title: 'Watch it draw',
+                body: 'Each step is hand-drawn live with chalk strokes and annotations you can follow in real time.',
+              },
+              {
+                num: '03',
+                title: 'Build intuition',
+                body: 'Ask follow-ups, redraw any step, or riff on variations. Understanding compounds.',
+              },
+            ].map((f, i) => (
+              <motion.div
+                key={f.num}
+                className="feature"
+                initial={{ opacity: 0, y: 16 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, amount: 0.4 }}
+                transition={{ delay: i * 0.08, duration: 0.55, ease: [0.2, 0.8, 0.2, 1] }}
+              >
+                <div className="feature-num">{f.num}</div>
+                <div className="feature-title">{f.title}</div>
+                <div className="feature-body">{f.body}</div>
+              </motion.div>
+            ))}
+          </div>
+        </section>
+
+        <footer className="footer">
+          <div>© {new Date().getFullYear()} MathCanvas</div>
+          <div>Built for curious minds.</div>
+        </footer>
+      </div>
 
       <div className="transition-shade" />
     </main>
