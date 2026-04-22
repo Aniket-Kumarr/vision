@@ -179,7 +179,14 @@ const ChalkCanvas = forwardRef<ChalkCanvasHandle, ChalkCanvasProps>(
           ctx.setTransform(1, 0, 0, 1, 0, 0);
           ctx.putImageData(snapshot, 0, 0);
           ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-          renderDrawing(ctx, drawing, progress);
+          try {
+            renderDrawing(ctx, drawing, progress);
+          } catch (err) {
+            console.error('renderDrawing failed:', err);
+            animRef.current = null;
+            onComplete();
+            return;
+          }
 
           if (progress < 1) {
             rafId = requestAnimationFrame(animate);

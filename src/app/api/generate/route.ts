@@ -7,24 +7,14 @@ import { Blueprint, Domain, Strategy } from '@/lib/types';
 // Constants
 // ---------------------------------------------------------------------------
 
-/** Model used for blueprint generation. Change here to update everywhere. */
-const GENERATION_MODEL = 'claude-sonnet-4-6';
+/** Model used for blueprint generation. */
+const GENERATION_MODEL = 'claude-sonnet-4-5';
 
 /**
  * Hard cap on the concept string accepted from the client.
  * Prevents runaway prompt-injection payloads and oversized API requests.
  */
 const MAX_CONCEPT_LENGTH = 200;
-
-/**
- * Milliseconds before we abort the Anthropic API call.
- * The Anthropic SDK respects an AbortSignal passed via `signal`.
- */
-const API_TIMEOUT_MS = 30_000;
-
-// NOTE — Rate limiting: this route has no per-IP or per-user rate limiting.
-// In production, add a middleware layer (e.g. Upstash Ratelimit + Redis) before
-// this handler to cap requests per minute per user/IP.
 
 const client = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -97,14 +87,6 @@ Critical rules:
 // Input validation
 // ---------------------------------------------------------------------------
 
-const VALID_DOMAINS = new Set<Domain>([
-  'algebra', 'geometry', 'trigonometry', 'calculus', 'statistics', 'linear_algebra',
-]);
-
-const VALID_STRATEGIES = new Set<Strategy>([
-  'decomposition', 'transformation', 'accumulation', 'relationship',
-]);
-
 /**
  * Sanitise a user-supplied concept string before it is interpolated into a
  * prompt.  Removes ASCII control characters and trims whitespace.  Returns
@@ -117,43 +99,6 @@ function sanitizeConcept(raw: string): string | null {
   // Strip ASCII control characters (0x00–0x1F, 0x7F) that have no place in a
   // math concept name and can be used to manipulate multi-line prompts.
   return trimmed.replace(/[\x00-\x1F\x7F]/g, '');
-}
-
-/**
- * Validate that a parsed Blueprint from the AI matches the TypeScript types
- * defined in types.ts at a structural level.  Throws a descriptive Error if
- * the object is malformed so the caller can decide how to handle the failure.
- */
-function validateBlueprint(obj: unknown): Blueprint {
-  if (typeof obj !== 'object' || obj === null) {
-    throw new Error('Blueprint is not an object');
-  }
-  const b = obj as Record<string, unknown>;
-
-  if (typeof b.title !== 'string' || b.title.trim() === '') {
-    throw new Error('Blueprint.title must be a non-empty string');
-  }
-  if (!VALID_DOMAINS.has(b.domain as Domain)) {
-    throw new Error(`Blueprint.domain "${b.domain}" is not a valid Domain`);
-  }
-  if (!VALID_STRATEGIES.has(b.strategy as Strategy)) {
-    throw new Error(`Blueprint.strategy "${b.strategy}" is not a valid Strategy`);
-  }
-  if (!Array.isArray(b.steps) || b.steps.length === 0 || b.steps.length > 6) {
-    throw new Error('Blueprint.steps must be an array of 1–6 items');
-  }
-  for (let i = 0; i < b.steps.length; i++) {
-    const step = b.steps[i] as Record<string, unknown>;
-    if (typeof step.id !== 'number') throw new Error(`Step[${i}].id must be a number`);
-    if (typeof step.narration !== 'string' || step.narration.trim() === '') {
-      throw new Error(`Step[${i}].narration must be a non-empty string`);
-    }
-    if (!Array.isArray(step.drawings)) {
-      throw new Error(`Step[${i}].drawings must be an array`);
-    }
-  }
-
-  return obj as Blueprint;
 }
 
 function normalizeConceptKey(concept: string): string {
@@ -181,61 +126,78 @@ function findFixture(concept: string): Blueprint | null {
  * A hard timeout is enforced via AbortController so a slow/hung API call does
  * not block a serverless function indefinitely.
  */
-function streamingBlueprintResponse(concept: string): Response {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+const VALID_DOMAINS = new Set<Domain>([
+  'algebra',
+  'geometry',
+  'trigonometry',
+  'calculus',
+  'statistics',
+  'linear_algebra',
+]);
 
-  const encoder = new TextEncoder();
+const VALID_STRATEGIES = new Set<Strategy>([
+  'decomposition',
+  'transformation',
+  'accumulation',
+  'relationship',
+]);
 
-  const stream = new ReadableStream({
-    async start(streamController) {
-      try {
-        const anthropicStream = client.messages.stream(
+function validateBlueprint(value: unknown): Blueprint {
+  if (typeof value !== 'object' || value === null) throw new Error('Blueprint must be an object');
+  const bp = value as Record<string, unknown>;
+  if (typeof bp.title !== 'string' || !bp.title.trim()) throw new Error('Blueprint title is required');
+  if (!VALID_DOMAINS.has(bp.domain as Domain)) throw new Error('Invalid blueprint domain');
+  if (!VALID_STRATEGIES.has(bp.strategy as Strategy)) throw new Error('Invalid blueprint strategy');
+  if (!Array.isArray(bp.steps) || bp.steps.length < 1 || bp.steps.length > 6) {
+    throw new Error('Blueprint steps must contain 1-6 items');
+  }
+  for (let i = 0; i < bp.steps.length; i++) {
+    const step = bp.steps[i] as Record<string, unknown>;
+    if (typeof step.id !== 'number') throw new Error(`Step ${i + 1} has invalid id`);
+    if (typeof step.narration !== 'string' || !step.narration.trim()) {
+      throw new Error(`Step ${i + 1} has invalid narration`);
+    }
+    if (!Array.isArray(step.drawings)) throw new Error(`Step ${i + 1} drawings must be an array`);
+  }
+  return value as Blueprint;
+}
+
+function parseModelJson(text: string): unknown {
+  const cleaned = text
+    .replace(/^```json\s*/i, '')
+    .replace(/^```\s*/i, '')
+    .replace(/```\s*$/i, '')
+    .trim();
+  return JSON.parse(cleaned);
+}
+
+async function generateWithClaude(concept: string): Promise<Blueprint> {
+  let lastErr: unknown = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const response = await client.messages.create({
+        model: GENERATION_MODEL,
+        max_tokens: 4096,
+        system: SYSTEM_PROMPT,
+        messages: [
           {
-            model: GENERATION_MODEL,
-            max_tokens: 4096,
-            system: SYSTEM_PROMPT,
-            messages: [
-              {
-                role: 'user',
-                // concept has already been sanitised by the POST handler.
-                content: `Create a visual chalk explanation for: "${concept}"`,
-              },
-            ],
+            role: 'user',
+            content: `Create a visual chalk explanation for: "${concept}"`,
           },
-          { signal: controller.signal },
-        );
-
-        for await (const event of anthropicStream) {
-          if (
-            event.type === 'content_block_delta' &&
-            event.delta.type === 'text_delta'
-          ) {
-            streamController.enqueue(encoder.encode(event.delta.text));
-          }
-        }
-
-        streamController.close();
-      } catch (err) {
-        streamController.error(err);
-      } finally {
-        clearTimeout(timeoutId);
-      }
-    },
-    cancel() {
-      clearTimeout(timeoutId);
-      controller.abort();
-    },
-  });
-
-  return new Response(stream, {
-    headers: {
-      'Content-Type': 'text/plain; charset=utf-8',
-      'Transfer-Encoding': 'chunked',
-      // Prevent buffering by proxies/CDNs during development.
-      'X-Accel-Buffering': 'no',
-    },
-  });
+        ],
+      });
+      const text = response.content
+        .filter((part) => part.type === 'text')
+        .map((part) => ('text' in part ? part.text : ''))
+        .join('\n')
+        .trim();
+      const parsed = parseModelJson(text);
+      return validateBlueprint(parsed);
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+  throw lastErr ?? new Error('Failed to generate a valid blueprint');
 }
 
 export async function POST(req: NextRequest) {
@@ -276,9 +238,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ blueprint: fallback });
     }
 
-    // Happy path: stream the raw JSON text from Claude to the client.
-    // The client concatenates all chunks, then parses the complete JSON.
-    return streamingBlueprintResponse(concept);
+    const blueprint = await generateWithClaude(concept);
+    return NextResponse.json({ blueprint });
   } catch (err) {
     // SECURITY: never reflect raw Error.message to the client — it can contain
     // internal paths, SDK version strings, or partial API responses.

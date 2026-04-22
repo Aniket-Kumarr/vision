@@ -10,6 +10,7 @@ interface StepControllerProps {
   narration: string;
   isAnimating: boolean;
   isLastStep: boolean;
+  finalLabel?: string;
   onNext: () => void;
   onBack: () => void;
 }
@@ -20,6 +21,7 @@ export default function StepController({
   narration,
   isAnimating,
   isLastStep,
+  finalLabel = 'Start Over',
   onNext,
   onBack,
 }: StepControllerProps) {
@@ -142,7 +144,7 @@ export default function StepController({
                 : 'opacity-30 cursor-not-allowed text-[rgba(245,240,232,0.4)] border-[rgba(245,240,232,0.1)]'
             } bg-transparent`}
           >
-            {isLastStep ? 'Start Over' : 'Next →'}
+            {isLastStep ? finalLabel : 'Next →'}
           </button>
         </div>
       </div>

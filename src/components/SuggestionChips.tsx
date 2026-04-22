@@ -29,7 +29,7 @@ export default function SuggestionChips({ onSelect, disabled = false }: Suggesti
           type="button"
           disabled={disabled}
           onClick={() => onSelect(chip)}
-          className="suggestion-chip px-3 py-1.5 rounded-full text-sm font-light tracking-wide flex-shrink-0"
+          className="suggestion-chip px-3 py-1.5 text-sm font-light tracking-wide flex-shrink-0"
         >
           {chip}
         </button>

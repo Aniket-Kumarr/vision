@@ -11,12 +11,12 @@ import { Blueprint, Drawing } from '@/lib/types';
 const ChalkCanvas = dynamic(() => import('@/components/ChalkCanvas'), { ssr: false });
 
 type PageState = 'loading' | 'error' | 'playing';
+const CONCEPT_KEY = 'mathcanvas_concept';
 
 export default function CanvasPage() {
   const router = useRouter();
   const canvasRef = useRef<ChalkCanvasHandle>(null);
 
-  const [concept, setConcept] = useState('');
   const [blueprint, setBlueprint] = useState<Blueprint | null>(null);
   const [pageState, setPageState] = useState<PageState>('loading');
   const [errorMsg, setErrorMsg] = useState('');
@@ -24,19 +24,20 @@ export default function CanvasPage() {
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
   const [currentNarration, setCurrentNarration] = useState('');
+  const [concept, setConcept] = useState('');
 
   const restartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Load concept from localStorage, then fetch blueprint
   useEffect(() => {
-    const saved = localStorage.getItem('vision_concept');
+    const saved = localStorage.getItem(CONCEPT_KEY) ?? localStorage.getItem('vision_concept');
     if (!saved) {
       router.replace('/');
       return;
     }
     setConcept(saved);
-
     const controller = new AbortController();
+    const requestTimeout = setTimeout(() => controller.abort(), 15000);
 
     fetch('/api/generate', {
       method: 'POST',
@@ -102,13 +103,23 @@ export default function CanvasPage() {
         setPageState('playing');
       })
       .catch((err) => {
-        if (err.name === 'AbortError') return;
+        if (err.name === 'AbortError') {
+          setErrorMsg('Request timed out. Please try again.');
+          setPageState('error');
+          return;
+        }
         console.error(err);
         setErrorMsg(err.message || 'Something went wrong. Please try again.');
         setPageState('error');
+      })
+      .finally(() => {
+        clearTimeout(requestTimeout);
       });
 
-    return () => controller.abort();
+    return () => {
+      clearTimeout(requestTimeout);
+      controller.abort();
+    };
   }, [router]);
 
   // Play a sequence of drawings one after another
@@ -120,16 +131,32 @@ export default function CanvasPage() {
       }
 
       let idx = 0;
+      let fallbackTimer: ReturnType<typeof setTimeout> | null = null;
+      let finished = false;
 
       const playNext = () => {
+        if (finished) return;
         if (idx >= drawings.length) {
+          finished = true;
+          if (fallbackTimer) clearTimeout(fallbackTimer);
           onAllComplete();
           return;
         }
 
         const drawing = drawings[idx];
         idx++;
-        canvasRef.current?.playDrawing(drawing, playNext);
+        if (fallbackTimer) clearTimeout(fallbackTimer);
+        fallbackTimer = setTimeout(
+          () => {
+            console.warn('Drawing timeout fallback hit, moving to next drawing.');
+            playNext();
+          },
+          Math.max(1200, (drawing.duration || 1200) + 1400)
+        );
+        canvasRef.current?.playDrawing(drawing, () => {
+          if (fallbackTimer) clearTimeout(fallbackTimer);
+          playNext();
+        });
       };
 
       playNext();
@@ -179,11 +206,14 @@ export default function CanvasPage() {
   const handleNext = useCallback(() => {
     if (!blueprint || isAnimating) return;
     const isLast = currentStepIndex >= blueprint.steps.length - 1;
-    if (isLast) { handleRestart(); return; }
+    if (isLast) {
+      router.push('/');
+      return;
+    }
     const nextIdx = currentStepIndex + 1;
     setCurrentStepIndex(nextIdx);
     playStep(nextIdx, blueprint);
-  }, [blueprint, currentStepIndex, isAnimating, playStep, handleRestart]);
+  }, [blueprint, currentStepIndex, isAnimating, playStep, router]);
 
   const handleHome = useCallback(() => router.push('/'), [router]);
 
@@ -245,7 +275,7 @@ export default function CanvasPage() {
               letterSpacing: '0.05em',
             }}
           >
-            thinking...
+            thinking about {concept || 'your concept'}...
           </p>
         </div>
       )}
@@ -321,18 +351,31 @@ export default function CanvasPage() {
               background: 'linear-gradient(to bottom, rgba(10,10,10,0.8) 60%, transparent)',
             }}
           />
-          <h2
-            className="relative"
-            style={{
-              fontFamily: "'Caveat', cursive",
-              fontSize: 24,
-              fontWeight: 600,
-              color: 'rgba(245,240,232,0.85)',
-              letterSpacing: '0.02em',
-            }}
-          >
-            {blueprint.title}
-          </h2>
+          <div className="relative">
+            <p
+              style={{
+                fontFamily: "'Inter', sans-serif",
+                fontSize: 12,
+                color: 'rgba(245,240,232,0.45)',
+                letterSpacing: '0.16em',
+                textTransform: 'uppercase',
+                marginBottom: 2,
+              }}
+            >
+              MathCanvas
+            </p>
+            <h2
+              style={{
+                fontFamily: "'Caveat', cursive",
+                fontSize: 24,
+                fontWeight: 600,
+                color: 'rgba(245,240,232,0.85)',
+                letterSpacing: '0.02em',
+              }}
+            >
+              {blueprint.title}
+            </h2>
+          </div>
           <button
             onClick={handleHome}
             className="relative hover:opacity-100 transition-opacity"
@@ -347,7 +390,7 @@ export default function CanvasPage() {
               letterSpacing: '0.04em',
             }}
           >
-            ← New concept
+            ← Ask something else
           </button>
         </div>
       )}
@@ -360,6 +403,7 @@ export default function CanvasPage() {
           narration={currentNarration}
           isAnimating={isAnimating}
           isLastStep={currentStepIndex >= blueprint.steps.length - 1}
+          finalLabel="Try Another"
           onNext={handleNext}
           onBack={handlePrevStep}
         />
