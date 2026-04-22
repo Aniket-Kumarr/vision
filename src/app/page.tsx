@@ -171,7 +171,7 @@ export default function HomePage() {
           animate={{ opacity: 1 }}
           transition={{ delay: 0.2 }}
         >
-          Visual math · AI tutor
+          Every concept is visual · we draw it for you
         </motion.span>
       </header>
 
@@ -189,7 +189,7 @@ export default function HomePage() {
             Trusted by students & self-learners
           </motion.p>
           <motion.p className="hero-kicker" variants={fadeUp} custom={1}>
-            The tutor that draws every step
+            Every concept is visual. We draw it for you.
           </motion.p>
           <motion.h1 className="hero-title" variants={fadeUp} custom={2}>
             Visual math intuition,

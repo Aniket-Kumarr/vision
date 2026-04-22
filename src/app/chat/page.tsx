@@ -119,7 +119,8 @@ export default function ChatPage() {
             Hi {firstName}, what should we visualize today?
           </motion.h1>
           <motion.p className="chat-session-lede" variants={fadeUp} custom={2}>
-            Type a concept below. I&apos;ll break it into steps on the chalkboard, one drawing at a time.
+            Every concept is visual. We draw it for you. Type a topic below and we&apos;ll build it on the
+            chalkboard, one step at a time.
           </motion.p>
         </motion.section>
 
