@@ -44,12 +44,56 @@ export default function CanvasPage() {
       body: JSON.stringify({ concept: saved }),
       signal: controller.signal,
     })
-      .then((r) => {
+      .then(async (r) => {
         if (!r.ok) throw new Error(`Server error ${r.status}`);
-        return r.json();
+
+        // Read the body as a stream so we receive chunks as they arrive from
+        // the Anthropic API, rather than waiting for the full response.
+        const reader = r.body?.getReader();
+        if (!reader) throw new Error('No response body');
+
+        const decoder = new TextDecoder();
+        let accumulated = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          accumulated += decoder.decode(value, { stream: true });
+        }
+        // Flush any remaining bytes in the decoder.
+        accumulated += decoder.decode();
+
+        // Strip any accidental markdown fences Claude may have emitted.
+        const cleaned = accumulated
+          .replace(/^```json\s*/i, '')
+          .replace(/^```\s*/i, '')
+          .replace(/```\s*$/i, '')
+          .trim();
+
+        // The fixture/fallback paths return { blueprint: ... } JSON directly;
+        // the streaming path returns raw blueprint JSON.  Handle both.
+        let data: unknown;
+        try {
+          data = JSON.parse(cleaned);
+        } catch {
+          throw new Error('Failed to parse server response. Please try again.');
+        }
+
+        // If the server wrapped the blueprint (fixture/fallback path), unwrap it.
+        if (
+          data !== null &&
+          typeof data === 'object' &&
+          'blueprint' in (data as Record<string, unknown>)
+        ) {
+          return data as { blueprint: Blueprint; error?: string };
+        }
+
+        // Streaming path: the raw JSON IS the blueprint.
+        return { blueprint: data as Blueprint };
       })
       .then((data) => {
-        if (data.error) throw new Error(data.error);
+        if (!data) return;
+        if ('error' in data && data.error) throw new Error(data.error as string);
         const bp = data.blueprint as Blueprint;
         if (!bp || !Array.isArray(bp.steps) || bp.steps.length === 0) {
           throw new Error('Received an empty blueprint. Please try again.');

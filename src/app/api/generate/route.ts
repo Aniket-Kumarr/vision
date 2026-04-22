@@ -173,44 +173,69 @@ function findFixture(concept: string): Blueprint | null {
   return null;
 }
 
-async function generateBlueprint(concept: string): Promise<Blueprint> {
+/**
+ * Build a streaming Response that pipes Anthropic text-delta events directly
+ * to the client as UTF-8 bytes.  The client concatenates the chunks and parses
+ * the final JSON once the stream closes.
+ *
+ * A hard timeout is enforced via AbortController so a slow/hung API call does
+ * not block a serverless function indefinitely.
+ */
+function streamingBlueprintResponse(concept: string): Response {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
 
-  let response: Awaited<ReturnType<typeof client.messages.create>>;
-  try {
-    response = await client.messages.create(
-      {
-        model: GENERATION_MODEL,
-        max_tokens: 4096,
-        system: SYSTEM_PROMPT,
-        messages: [
+  const encoder = new TextEncoder();
+
+  const stream = new ReadableStream({
+    async start(streamController) {
+      try {
+        const anthropicStream = client.messages.stream(
           {
-            role: 'user',
-            // concept has already been sanitised by the POST handler before
-            // reaching here — no raw user input is concatenated unsafely.
-            content: `Create a visual chalk explanation for: "${concept}"`,
+            model: GENERATION_MODEL,
+            max_tokens: 4096,
+            system: SYSTEM_PROMPT,
+            messages: [
+              {
+                role: 'user',
+                // concept has already been sanitised by the POST handler.
+                content: `Create a visual chalk explanation for: "${concept}"`,
+              },
+            ],
           },
-        ],
-      },
-      { signal: controller.signal },
-    );
-  } finally {
-    clearTimeout(timeoutId);
-  }
+          { signal: controller.signal },
+        );
 
-  const text = response.content[0].type === 'text' ? response.content[0].text : '';
+        for await (const event of anthropicStream) {
+          if (
+            event.type === 'content_block_delta' &&
+            event.delta.type === 'text_delta'
+          ) {
+            streamController.enqueue(encoder.encode(event.delta.text));
+          }
+        }
 
-  // Strip any accidental markdown fences
-  const cleaned = text
-    .replace(/^```json\s*/i, '')
-    .replace(/^```\s*/i, '')
-    .replace(/```\s*$/i, '')
-    .trim();
+        streamController.close();
+      } catch (err) {
+        streamController.error(err);
+      } finally {
+        clearTimeout(timeoutId);
+      }
+    },
+    cancel() {
+      clearTimeout(timeoutId);
+      controller.abort();
+    },
+  });
 
-  const parsed: unknown = JSON.parse(cleaned);
-  // Validate structure matches Blueprint — throws on mismatch.
-  return validateBlueprint(parsed);
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'text/plain; charset=utf-8',
+      'Transfer-Encoding': 'chunked',
+      // Prevent buffering by proxies/CDNs during development.
+      'X-Accel-Buffering': 'no',
+    },
+  });
 }
 
 export async function POST(req: NextRequest) {
@@ -233,36 +258,23 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Check fixtures first (avoids API call in dev)
+    // Check fixtures first (avoids API call in dev).
+    // Fixtures are returned as a one-shot JSON stream so the client-side
+    // reader works identically for both paths.
     const fixture = findFixture(concept);
     if (fixture) {
       return NextResponse.json({ blueprint: fixture });
     }
 
-    // No ANTHROPIC_API_KEY in env → fall back to nearest fixture or error
+    // No ANTHROPIC_API_KEY in env → fall back to nearest fixture or error.
     if (!process.env.ANTHROPIC_API_KEY) {
       const fallback = Object.values(FIXTURES)[0];
       return NextResponse.json({ blueprint: fallback });
     }
 
-    let blueprint: Blueprint;
-    let lastError: unknown;
-
-    // Attempt generation; retry once on transient failure.
-    for (let attempt = 0; attempt < 2; attempt++) {
-      try {
-        blueprint = await generateBlueprint(concept);
-        return NextResponse.json({ blueprint });
-      } catch (err) {
-        lastError = err;
-        // Do not retry on abort (timeout) — the second attempt would also time out.
-        if (err instanceof Error && err.name === 'AbortError') break;
-      }
-    }
-
-    // Both attempts failed — log internally, return a safe generic message.
-    console.error('[/api/generate] generation failed after retries:', lastError);
-    return NextResponse.json({ error: 'Generation failed. Please try again.' }, { status: 502 });
+    // Happy path: stream the raw JSON text from Claude to the client.
+    // The client concatenates all chunks, then parses the complete JSON.
+    return streamingBlueprintResponse(concept);
   } catch (err) {
     // SECURITY: never reflect raw Error.message to the client — it can contain
     // internal paths, SDK version strings, or partial API responses.
