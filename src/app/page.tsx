@@ -45,7 +45,7 @@ export default function HomePage() {
     try {
       const raw =
         localStorage.getItem(VISUA_AI_USER_KEY) ?? localStorage.getItem('mathcanvas_user');
-      if (raw) router.replace('/chat');
+      if (raw) router.replace('/welcome');
     } catch {
       // ignore
     }
@@ -104,7 +104,7 @@ export default function HomePage() {
         };
         localStorage.setItem(VISUA_AI_USER_KEY, JSON.stringify(signedInUser));
         setAuthError('');
-        router.push('/chat');
+        router.push('/welcome');
       } catch {
         setAuthError('Google sign-in failed. Please try again.');
       }

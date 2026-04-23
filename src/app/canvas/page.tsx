@@ -7,10 +7,12 @@ import type { ChalkCanvasHandle } from '@/components/ChalkCanvas';
 import StepController from '@/components/StepController';
 import ChalkParticles from '@/components/ChalkParticles';
 import { Blueprint, Drawing } from '@/lib/types';
-import { VISUA_AI_CONCEPT_KEY, VISUA_AI_TOPIC_KEY } from '@/lib/auth';
+import { VISUA_AI_CONCEPT_KEY, VISUA_AI_SUBJECT_KEY, VISUA_AI_TOPIC_KEY } from '@/lib/auth';
 import { addLesson, takeReplay } from '@/lib/lessonHistory';
+import { extractExpressionsFromBlueprint } from '@/lib/desmos';
 
 const ChalkCanvas = dynamic(() => import('@/components/ChalkCanvas'), { ssr: false });
+const DesmosPanel = dynamic(() => import('@/components/DesmosPanel'), { ssr: false });
 
 type PageState = 'loading' | 'error' | 'playing';
 
@@ -331,7 +333,14 @@ export default function CanvasPage() {
       localStorage.getItem('mathcanvas_concept') ??
       localStorage.getItem('vision_concept');
     if (!saved) {
-      router.replace('/chat');
+      const subj = (() => {
+        try {
+          return localStorage.getItem(VISUA_AI_SUBJECT_KEY);
+        } catch {
+          return null;
+        }
+      })();
+      router.replace(subj === 'math' || subj === 'physics' ? `/chat?subject=${subj}` : '/chat');
       return;
     }
     const topic =
@@ -355,10 +364,19 @@ export default function CanvasPage() {
     const controller = new AbortController();
     const requestTimeout = setTimeout(() => controller.abort(), GENERATE_TIMEOUT_MS);
 
+    const activeSubject = (() => {
+      try {
+        const s = localStorage.getItem(VISUA_AI_SUBJECT_KEY);
+        return s === 'math' || s === 'physics' ? s : 'math';
+      } catch {
+        return 'math';
+      }
+    })();
+
     fetch('/api/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ concept: saved }),
+      body: JSON.stringify({ concept: saved, subject: activeSubject }),
       signal: controller.signal,
     })
       .then(async (r) => {
@@ -429,7 +447,15 @@ export default function CanvasPage() {
         setPageState('playing');
         // Persist the freshly-generated lesson so it appears in /chat history
         // and can be replayed later without another Anthropic call.
-        addLesson({ topic, concept: saved, blueprint: bp });
+        const storedSubject = (() => {
+          try {
+            const s = localStorage.getItem(VISUA_AI_SUBJECT_KEY);
+            return s === 'math' || s === 'physics' ? s : undefined;
+          } catch {
+            return undefined;
+          }
+        })();
+        addLesson({ topic, concept: saved, blueprint: bp, subject: storedSubject });
       })
       .catch((err) => {
         if (err.name === 'AbortError') {
@@ -534,19 +560,27 @@ export default function CanvasPage() {
     }, 50);
   }, [blueprint, playStep]);
 
+  const handleHome = useCallback(() => {
+    let subject: string | null = null;
+    try {
+      subject = localStorage.getItem(VISUA_AI_SUBJECT_KEY);
+    } catch {
+      // ignore
+    }
+    router.push(subject === 'math' || subject === 'physics' ? `/chat?subject=${subject}` : '/chat');
+  }, [router]);
+
   const handleNext = useCallback(() => {
     if (!blueprint || isAnimating) return;
     const isLast = currentStepIndex >= blueprint.steps.length - 1;
     if (isLast) {
-      router.push('/chat');
+      handleHome();
       return;
     }
     const nextIdx = currentStepIndex + 1;
     setCurrentStepIndex(nextIdx);
     playStep(nextIdx, blueprint);
-  }, [blueprint, currentStepIndex, isAnimating, playStep, router]);
-
-  const handleHome = useCallback(() => router.push('/chat'), [router]);
+  }, [blueprint, currentStepIndex, isAnimating, playStep, handleHome]);
 
   const handlePrevStep = useCallback(() => {
     if (!blueprint || isAnimating || currentStepIndex <= 0) return;
@@ -559,6 +593,17 @@ export default function CanvasPage() {
 
   const [isFollowUpPending, setIsFollowUpPending] = useState(false);
   const [followUpError, setFollowUpError] = useState<string | null>(null);
+
+  const [isDesmosOpen, setIsDesmosOpen] = useState(false);
+  const desmosExpressions = useMemo(
+    () => extractExpressionsFromBlueprint(blueprint, topicLabel || concept),
+    [blueprint, topicLabel, concept],
+  );
+  const desmosKeyPresent = Boolean(
+    (process.env.NEXT_PUBLIC_DESMOS_API_KEY || '').trim(),
+  );
+  const canShowDesmos =
+    desmosKeyPresent && desmosExpressions.length > 0 && pageState === 'playing';
 
   const handleAskFollowUp = useCallback(
     async (question: string) => {
@@ -613,7 +658,17 @@ export default function CanvasPage() {
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') router.push('/chat');
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
+      const isTyping =
+        tag === 'INPUT' || tag === 'TEXTAREA' || target?.isContentEditable === true;
+
+      if (e.key === 'Escape') {
+        handleHome();
+        return;
+      }
+      if (isTyping) return;
+
       if (e.key === ' ' || e.key === 'ArrowRight') {
         e.preventDefault();
         handleNextRef.current();
@@ -622,7 +677,7 @@ export default function CanvasPage() {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [router]);
+  }, [handleHome]);
 
   // ---- CANVAS SIZE ----
   // We want 800x600 logical canvas, scaled to fill screen
@@ -769,23 +824,53 @@ export default function CanvasPage() {
               </h2>
             </div>
           </div>
-          <button
-            onClick={handleHome}
-            className="relative hover:opacity-100 transition-opacity"
-            style={{
-              fontFamily: "'Inter', sans-serif",
-              fontWeight: 300,
-              fontSize: 13,
-              color: 'rgba(245,240,232,0.45)',
-              background: 'transparent',
-              border: 'none',
-              cursor: 'pointer',
-              letterSpacing: '0.04em',
-            }}
-          >
-            ← Ask something else
-          </button>
+          <div className="relative flex items-center gap-4">
+            {canShowDesmos && (
+              <button
+                onClick={() => setIsDesmosOpen(true)}
+                className="hover:opacity-100 transition-opacity"
+                style={{
+                  background: 'rgba(245,240,232,0.06)',
+                  color: 'rgba(245,240,232,0.85)',
+                  border: '1px solid rgba(245,240,232,0.18)',
+                  borderRadius: 8,
+                  padding: '5px 12px',
+                  fontFamily: "'Inter', sans-serif",
+                  fontWeight: 400,
+                  fontSize: 13,
+                  letterSpacing: '0.04em',
+                  cursor: 'pointer',
+                }}
+              >
+                Play with it →
+              </button>
+            )}
+            <button
+              onClick={handleHome}
+              className="hover:opacity-100 transition-opacity"
+              style={{
+                fontFamily: "'Inter', sans-serif",
+                fontWeight: 300,
+                fontSize: 13,
+                color: 'rgba(245,240,232,0.45)',
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                letterSpacing: '0.04em',
+              }}
+            >
+              ← Ask something else
+            </button>
+          </div>
         </div>
+      )}
+
+      {canShowDesmos && (
+        <DesmosPanel
+          expressions={desmosExpressions}
+          open={isDesmosOpen}
+          onClose={() => setIsDesmosOpen(false)}
+        />
       )}
 
       {/* Step controller / narration / next button */}

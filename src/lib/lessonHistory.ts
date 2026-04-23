@@ -5,12 +5,17 @@ export const REPLAY_KEY = 'visua_ai_replay_blueprint';
 
 const MAX_HISTORY = 50;
 
+export type LessonSubject = 'math' | 'physics';
+
 export interface LessonHistoryItem {
   id: string;
   topic: string;
   concept: string;
   blueprint: Blueprint;
   createdAt: number;
+  /** Which subject this lesson belongs to. Older entries without this field
+   *  default to 'math' since physics was added later. */
+  subject?: LessonSubject;
 }
 
 function isHistoryItem(x: unknown): x is LessonHistoryItem {
@@ -22,8 +27,13 @@ function isHistoryItem(x: unknown): x is LessonHistoryItem {
     typeof o.concept === 'string' &&
     typeof o.createdAt === 'number' &&
     typeof o.blueprint === 'object' &&
-    o.blueprint !== null
+    o.blueprint !== null &&
+    (o.subject === undefined || o.subject === 'math' || o.subject === 'physics')
   );
+}
+
+export function subjectForLesson(item: LessonHistoryItem): LessonSubject {
+  return item.subject ?? 'math';
 }
 
 export function getLessons(): LessonHistoryItem[] {

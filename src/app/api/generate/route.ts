@@ -20,7 +20,17 @@ const client = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
-const SYSTEM_PROMPT = `You are a mathematical visualization engine for an interactive chalkboard animation app. Your job is to take any math concept and break it down into a step-by-step visual explanation that draws on a black chalkboard with colorful chalk.
+type Subject = 'math' | 'physics';
+
+const MATH_INTRO = `You are a mathematical visualization engine for an interactive chalkboard animation app. Your job is to take any math concept and break it down into a step-by-step visual explanation that draws on a black chalkboard with colorful chalk.`;
+
+const PHYSICS_INTRO = `You are a physics visualization engine for an interactive chalkboard animation app. Your job is to take any physics concept — forces, motion, energy, waves, momentum, circular motion — and break it down into a step-by-step visual explanation that draws on a black chalkboard with colorful chalk.
+
+IMPORTANT: Only create physics lessons. If the topic is clearly a pure math topic with no physical interpretation (like "unit circle proof", "integration by parts", "derivative rules"), reframe it with a physical application — e.g. "unit circle" → circular motion; "derivative" → velocity as derivative of position; "integral" → work as integral of force. Every lesson must show a physical scenario, quantity, or phenomenon, not abstract math.`;
+
+function buildSystemPrompt(subject: Subject): string {
+  const intro = subject === 'physics' ? PHYSICS_INTRO : MATH_INTRO;
+  return `${intro}
 
 Output ONLY a raw valid JSON object. No markdown. No backticks. No explanation. Just the JSON.
 
@@ -82,6 +92,7 @@ Critical rules:
 - Keep all drawings within canvas bounds (0-800 x, 0-600 y) with 20px margin
 - For text: fontSize should be between 14 and 36
 - For axes: place them so content fits on screen (cx/cy is the origin, xRange/yRange is how far each direction)`;
+}
 
 // ---------------------------------------------------------------------------
 // Input validation
@@ -176,18 +187,18 @@ function parseModelJson(text: string): unknown {
   return JSON.parse(cleaned);
 }
 
-async function generateWithClaude(concept: string): Promise<Blueprint> {
+async function generateWithClaude(concept: string, subject: Subject): Promise<Blueprint> {
   let lastErr: unknown = null;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       const response = await client.messages.create({
         model: GENERATION_MODEL,
         max_tokens: 4096,
-        system: SYSTEM_PROMPT,
+        system: buildSystemPrompt(subject),
         messages: [
           {
             role: 'user',
-            content: `Create a visual chalk explanation for: "${concept}"`,
+            content: `Create a visual chalk explanation (${subject} subject) for: "${concept}"`,
           },
         ],
       });
@@ -225,6 +236,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const subjectRaw = body?.subject;
+    const subject: Subject =
+      subjectRaw === 'physics' || subjectRaw === 'math' ? subjectRaw : 'math';
+
     // Optional: force fixtures only (no API), useful for offline demos.
     // Set VISUA_AI_USE_FIXTURES_ONLY=1 in .env.local
     if (process.env.VISUA_AI_USE_FIXTURES_ONLY === '1') {
@@ -233,9 +248,13 @@ export async function POST(req: NextRequest) {
     }
 
     // Check fixtures first (avoids API call for well-known concepts).
-    const fixture = findFixture(concept);
-    if (fixture) {
-      return NextResponse.json({ blueprint: fixture });
+    // Fixtures are all math — skip them entirely for physics so we never
+    // serve a math lesson to the physics workspace.
+    if (subject === 'math') {
+      const fixture = findFixture(concept);
+      if (fixture) {
+        return NextResponse.json({ blueprint: fixture });
+      }
     }
 
     // Custom topics need Claude; without a key we only serve pre-built fixtures above.
@@ -250,7 +269,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const blueprint = await generateWithClaude(concept);
+    const blueprint = await generateWithClaude(concept, subject);
     return NextResponse.json({ blueprint });
   } catch (err) {
     // SECURITY: never reflect raw Error.message to the client; it can contain

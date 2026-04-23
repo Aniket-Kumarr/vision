@@ -7,6 +7,9 @@ export const VISUA_AI_CONCEPT_KEY = 'visua_ai_concept';
 /** Short label for loading UI (e.g. chip title); falls back to concept if missing. */
 export const VISUA_AI_TOPIC_KEY = 'visua_ai_topic';
 
+/** localStorage key for the user's current subject selection. */
+export const VISUA_AI_SUBJECT_KEY = 'visua_ai_subject';
+
 export type VisuaAiUser = {
   name?: string;
   email?: string;

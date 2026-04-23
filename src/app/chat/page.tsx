@@ -1,13 +1,15 @@
 'use client';
 
-import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { FormEvent, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
 import ChalkParticles from '@/components/ChalkParticles';
+import PhysicsDoodles from '@/components/PhysicsDoodles';
 import SuggestionChips from '@/components/SuggestionChips';
 import {
   VISUA_AI_CONCEPT_KEY,
+  VISUA_AI_SUBJECT_KEY,
   VISUA_AI_TOPIC_KEY,
   VISUA_AI_USER_KEY,
   type VisuaAiUser,
@@ -15,8 +17,18 @@ import {
 import {
   displayTopicForUserConcept,
   promptForUserConcept,
+  SUGGESTION_CHIPS,
   SUGGESTION_TO_PROMPT,
 } from '@/lib/conceptPrompts';
+import {
+  PHYSICS_SUGGESTION_CHIPS,
+  PHYSICS_SUGGESTION_TO_PROMPT,
+  displayPhysicsTopicForUserConcept,
+  physicsPromptForUserConcept,
+} from '@/lib/physicsPrompts';
+import { detectSubjectScope } from '@/lib/subjectScope';
+
+type Subject = 'math' | 'physics';
 import {
   type LessonHistoryItem,
   clearLessons,
@@ -36,19 +48,22 @@ function relativeTime(ts: number): string {
 
 interface LessonHistoryProps {
   disabled: boolean;
+  subject: 'math' | 'physics';
   onReplay: (item: LessonHistoryItem) => void;
 }
 
-function LessonHistory({ disabled, onReplay }: LessonHistoryProps) {
+function LessonHistory({ disabled, subject, onReplay }: LessonHistoryProps) {
   const [items, setItems] = useState<LessonHistoryItem[]>([]);
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
     setItems(getLessons());
     setHydrated(true);
-  }, []);
+  }, [subject]);
 
-  if (!hydrated || items.length === 0) return null;
+  const filtered = items.filter((it) => (it.subject ?? 'math') === subject);
+
+  if (!hydrated || filtered.length === 0) return null;
 
   return (
     <motion.section
@@ -72,7 +87,7 @@ function LessonHistory({ disabled, onReplay }: LessonHistoryProps) {
         </button>
       </div>
       <ul className="lesson-history-list">
-        {items.map((item) => (
+        {filtered.map((item) => (
           <li key={item.id} className="lesson-history-item">
             <button
               type="button"
@@ -123,6 +138,13 @@ const WARM_CHALK_DUST: [number, number, number][] = [
   [37, 96, 96],    // deep teal
   [122, 90, 66],   // warm brown
   [180, 140, 70],  // honey gold
+];
+
+const LILAC_CHALK_DUST: [number, number, number][] = [
+  [110, 86, 160],  // deep violet
+  [150, 120, 200], // soft purple
+  [90, 100, 170],  // indigo-blue
+  [180, 160, 220], // light lavender
 ];
 
 function Typewriter({ text, startDelayMs = 0, charMs = 18 }: { text: string; startDelayMs?: number; charMs?: number }) {
@@ -221,10 +243,52 @@ function ChatDoodles() {
 }
 
 export default function ChatPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="chat-session-page">
+          <div className="chat-session-inner" style={{ padding: '4rem 1rem', textAlign: 'center' }}>
+            <p className="small-muted">Loading…</p>
+          </div>
+        </main>
+      }
+    >
+      <ChatPageInner />
+    </Suspense>
+  );
+}
+
+function ChatPageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [user, setUser] = useState<VisuaAiUser | null>(null);
   const [concept, setConcept] = useState('');
   const [isTransitioning, setIsTransitioning] = useState(false);
+
+  const subject: Subject = useMemo(() => {
+    const q = searchParams.get('subject');
+    if (q === 'math' || q === 'physics') return q;
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem(VISUA_AI_SUBJECT_KEY);
+      if (stored === 'math' || stored === 'physics') return stored;
+    }
+    return 'math';
+  }, [searchParams]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(VISUA_AI_SUBJECT_KEY, subject);
+    } catch {
+      // ignore
+    }
+  }, [subject]);
+
+  const chips = subject === 'physics' ? PHYSICS_SUGGESTION_CHIPS : SUGGESTION_CHIPS;
+  const promptMap: Record<string, string> =
+    subject === 'physics' ? PHYSICS_SUGGESTION_TO_PROMPT : SUGGESTION_TO_PROMPT;
+  const genericPrompt = subject === 'physics' ? physicsPromptForUserConcept : promptForUserConcept;
+  const displayTopic =
+    subject === 'physics' ? displayPhysicsTopicForUserConcept : displayTopicForUserConcept;
 
   const firstName = useMemo(() => {
     if (!user?.name) return 'there';
@@ -245,9 +309,16 @@ export default function ChatPage() {
     }
   }, [router]);
 
+  const [scopeBanner, setScopeBanner] = useState<{
+    likelySubject: Subject;
+    topic: string;
+    prompt: string;
+    display: string;
+  } | null>(null);
+
   const startLesson = (topicLabel: string, apiPrompt: string) => {
     const prompt = apiPrompt.trim();
-    const topic = (topicLabel.trim() || displayTopicForUserConcept(prompt)).slice(0, 120);
+    const topic = (topicLabel.trim() || displayTopic(prompt)).slice(0, 120);
     if (!prompt || isTransitioning) return;
     localStorage.setItem(VISUA_AI_CONCEPT_KEY, prompt);
     localStorage.setItem(VISUA_AI_TOPIC_KEY, topic);
@@ -266,7 +337,41 @@ export default function ChatPage() {
     e.preventDefault();
     const raw = concept.trim();
     if (!raw) return;
-    startLesson(displayTopicForUserConcept(raw), promptForUserConcept(raw));
+    const scope = detectSubjectScope(raw, subject);
+    if (scope.mismatch && scope.likelySubject) {
+      setScopeBanner({
+        likelySubject: scope.likelySubject,
+        topic: displayTopic(raw),
+        prompt: genericPrompt(raw),
+        display: raw,
+      });
+      return;
+    }
+    setScopeBanner(null);
+    startLesson(displayTopic(raw), genericPrompt(raw));
+  };
+
+  const dismissScopeBanner = () => setScopeBanner(null);
+
+  const switchSubjectAndStart = () => {
+    if (!scopeBanner) return;
+    const target = scopeBanner.likelySubject;
+    try {
+      localStorage.setItem(VISUA_AI_SUBJECT_KEY, target);
+    } catch {
+      // ignore
+    }
+    // Stash the concept so the new subject's /chat can pick up the input.
+    setConcept(scopeBanner.display);
+    setScopeBanner(null);
+    router.push(`/chat?subject=${target}`);
+  };
+
+  const continueAnyway = () => {
+    if (!scopeBanner) return;
+    const { topic, prompt } = scopeBanner;
+    setScopeBanner(null);
+    startLesson(topic, prompt);
   };
 
   const signOut = () => {
@@ -292,12 +397,20 @@ export default function ChatPage() {
   }
 
   return (
-    <main className={`chat-session-page ${isTransitioning ? 'is-transitioning' : ''}`}>
+    <main
+      className={`chat-session-page subject-${subject} ${
+        isTransitioning ? 'is-transitioning' : ''
+      }`}
+    >
       {/* Ambient warm chalk dust drifting up — subtle, low count */}
-      <ChalkParticles count={22} colors={WARM_CHALK_DUST} className="chat-ambient" />
+      <ChalkParticles
+        count={22}
+        colors={subject === 'physics' ? LILAC_CHALK_DUST : WARM_CHALK_DUST}
+        className="chat-ambient"
+      />
 
-      {/* Static decorative math doodles in margins */}
-      <ChatDoodles />
+      {/* Static decorative doodles in margins — swap with subject */}
+      {subject === 'physics' ? <PhysicsDoodles /> : <ChatDoodles />}
 
       <motion.header
         className="chat-session-nav"
@@ -305,8 +418,21 @@ export default function ChatPage() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
       >
-        <span className="chat-session-logo">Visua AI</span>
+        <div className="chat-session-nav-left">
+          <span className="chat-session-logo">Visua AI</span>
+          <span className="chat-subject-pill" aria-label={`Current subject: ${subject}`}>
+            {subject === 'physics' ? 'Physics' : 'Math'}
+          </span>
+        </div>
         <div className="chat-session-nav-right">
+          <button
+            type="button"
+            className="ghost-btn"
+            onClick={() => router.push('/welcome')}
+            aria-label="Back to subject picker"
+          >
+            ← Home
+          </button>
           {user.picture ? (
             <Image src={user.picture} alt="" width={32} height={32} className="avatar" />
           ) : null}
@@ -367,7 +493,11 @@ export default function ChatPage() {
               <TutorAvatar />
               <div className="bot-bubble chat-bubble">
                 <Typewriter
-                  text="I'm ready when you are. Ask about any topic — unit circle, derivatives, area puzzles, or something you're stuck on in class."
+                  text={
+                    subject === 'physics'
+                      ? "I'm ready when you are. Ask about any topic — free-body diagrams, projectile motion, energy, waves, or something you're stuck on in class."
+                      : "I'm ready when you are. Ask about any topic — unit circle, derivatives, area puzzles, or something you're stuck on in class."
+                  }
                   startDelayMs={650}
                   charMs={14}
                 />
@@ -376,13 +506,54 @@ export default function ChatPage() {
           </div>
 
           <p className="prompt-label">What do you want to understand?</p>
+
+          {scopeBanner ? (
+            <div
+              className="scope-banner"
+              role="alert"
+              aria-live="polite"
+            >
+              <div className="scope-banner-body">
+                <p className="scope-banner-title">
+                  That sounds like a{' '}
+                  <strong>{scopeBanner.likelySubject === 'math' ? 'math' : 'physics'}</strong>{' '}
+                  topic.
+                </p>
+                <p className="scope-banner-text">
+                  You&apos;re currently in the {subject === 'physics' ? 'Physics' : 'Math'} workspace.
+                  Want to switch?
+                </p>
+              </div>
+              <div className="scope-banner-actions">
+                <button type="button" className="scope-banner-primary" onClick={switchSubjectAndStart}>
+                  Switch to {scopeBanner.likelySubject === 'math' ? 'Math' : 'Physics'} →
+                </button>
+                <button type="button" className="scope-banner-secondary" onClick={continueAnyway}>
+                  Continue anyway
+                </button>
+                <button
+                  type="button"
+                  className="scope-banner-dismiss"
+                  aria-label="Dismiss"
+                  onClick={dismissScopeBanner}
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+          ) : null}
+
           <form onSubmit={onSubmit} className="prompt-form">
             <input
               type="text"
               value={concept}
               onChange={(e) => setConcept(e.target.value)}
               disabled={isTransitioning}
-              placeholder="e.g. Explain the unit circle intuitively"
+              placeholder={
+                subject === 'physics'
+                  ? 'e.g. Why does a projectile travel in a parabola?'
+                  : 'e.g. Explain the unit circle intuitively'
+              }
               className="prompt-input"
               aria-label="Concept input"
             />
@@ -415,18 +586,16 @@ export default function ChatPage() {
         <div className="chip-wrap">
           <SuggestionChips
             disabled={isTransitioning}
+            chips={chips}
             onSelect={(chip) => {
               setConcept(chip);
-              const prompt =
-                chip in SUGGESTION_TO_PROMPT
-                  ? SUGGESTION_TO_PROMPT[chip as keyof typeof SUGGESTION_TO_PROMPT]
-                  : promptForUserConcept(chip);
+              const prompt = promptMap[chip] ?? genericPrompt(chip);
               startLesson(chip, prompt);
             }}
           />
         </div>
 
-        <LessonHistory disabled={isTransitioning} onReplay={replayLesson} />
+        <LessonHistory disabled={isTransitioning} subject={subject} onReplay={replayLesson} />
       </div>
 
       <div className="transition-shade" />
