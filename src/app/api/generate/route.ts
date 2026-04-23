@@ -226,8 +226,8 @@ export async function POST(req: NextRequest) {
     }
 
     // Optional: force fixtures only (no API), useful for offline demos.
-    // Set MATHCANVAS_USE_FIXTURES_ONLY=1 in .env.local
-    if (process.env.MATHCANVAS_USE_FIXTURES_ONLY === '1') {
+    // Set VISUA_AI_USE_FIXTURES_ONLY=1 in .env.local
+    if (process.env.VISUA_AI_USE_FIXTURES_ONLY === '1') {
       const onlyFixture = findFixture(concept) ?? Object.values(FIXTURES)[0];
       return NextResponse.json({ blueprint: onlyFixture });
     }

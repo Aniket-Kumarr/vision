@@ -7,7 +7,7 @@ import type { ChalkCanvasHandle } from '@/components/ChalkCanvas';
 import StepController from '@/components/StepController';
 import ChalkParticles from '@/components/ChalkParticles';
 import { Blueprint, Drawing } from '@/lib/types';
-import { MATHCANVAS_CONCEPT_KEY, MATHCANVAS_TOPIC_KEY } from '@/lib/auth';
+import { VISUA_AI_CONCEPT_KEY, VISUA_AI_TOPIC_KEY } from '@/lib/auth';
 
 const ChalkCanvas = dynamic(() => import('@/components/ChalkCanvas'), { ssr: false });
 
@@ -35,13 +35,16 @@ export default function CanvasPage() {
   // Load concept from localStorage, then fetch blueprint
   useEffect(() => {
     const saved =
-      localStorage.getItem(MATHCANVAS_CONCEPT_KEY) ?? localStorage.getItem('vision_concept');
+      localStorage.getItem(VISUA_AI_CONCEPT_KEY) ??
+      localStorage.getItem('mathcanvas_concept') ??
+      localStorage.getItem('vision_concept');
     if (!saved) {
       router.replace('/chat');
       return;
     }
     const topic =
-      localStorage.getItem(MATHCANVAS_TOPIC_KEY) ||
+      localStorage.getItem(VISUA_AI_TOPIC_KEY) ??
+      localStorage.getItem('mathcanvas_topic') ??
       (saved.length > 56 ? `${saved.slice(0, 54)}…` : saved);
     setConcept(saved);
     setTopicLabel(topic);
@@ -396,7 +399,7 @@ export default function CanvasPage() {
                 marginBottom: 2,
               }}
             >
-              MathCanvas
+              Visua AI
             </p>
             <h2
               style={{

@@ -6,10 +6,10 @@ import Image from 'next/image';
 import { motion } from 'framer-motion';
 import SuggestionChips from '@/components/SuggestionChips';
 import {
-  MATHCANVAS_CONCEPT_KEY,
-  MATHCANVAS_TOPIC_KEY,
-  MATHCANVAS_USER_KEY,
-  type MathCanvasUser,
+  VISUA_AI_CONCEPT_KEY,
+  VISUA_AI_TOPIC_KEY,
+  VISUA_AI_USER_KEY,
+  type VisuaAiUser,
 } from '@/lib/auth';
 import {
   displayTopicForUserConcept,
@@ -28,7 +28,7 @@ const fadeUp = {
 
 export default function ChatPage() {
   const router = useRouter();
-  const [user, setUser] = useState<MathCanvasUser | null>(null);
+  const [user, setUser] = useState<VisuaAiUser | null>(null);
   const [concept, setConcept] = useState('');
   const [isTransitioning, setIsTransitioning] = useState(false);
 
@@ -39,12 +39,13 @@ export default function ChatPage() {
 
   useEffect(() => {
     try {
-      const raw = localStorage.getItem(MATHCANVAS_USER_KEY);
+      const raw =
+        localStorage.getItem(VISUA_AI_USER_KEY) ?? localStorage.getItem('mathcanvas_user');
       if (!raw) {
         router.replace('/');
         return;
       }
-      setUser(JSON.parse(raw) as MathCanvasUser);
+      setUser(JSON.parse(raw) as VisuaAiUser);
     } catch {
       router.replace('/');
     }
@@ -54,8 +55,8 @@ export default function ChatPage() {
     const prompt = apiPrompt.trim();
     const topic = (topicLabel.trim() || displayTopicForUserConcept(prompt)).slice(0, 120);
     if (!prompt || isTransitioning) return;
-    localStorage.setItem(MATHCANVAS_CONCEPT_KEY, prompt);
-    localStorage.setItem(MATHCANVAS_TOPIC_KEY, topic);
+    localStorage.setItem(VISUA_AI_CONCEPT_KEY, prompt);
+    localStorage.setItem(VISUA_AI_TOPIC_KEY, topic);
     setIsTransitioning(true);
     window.setTimeout(() => router.push('/canvas'), 380);
   };
@@ -68,7 +69,14 @@ export default function ChatPage() {
   };
 
   const signOut = () => {
-    localStorage.removeItem(MATHCANVAS_USER_KEY);
+    localStorage.removeItem(VISUA_AI_USER_KEY);
+    localStorage.removeItem('mathcanvas_user');
+    localStorage.removeItem(VISUA_AI_CONCEPT_KEY);
+    localStorage.removeItem(VISUA_AI_TOPIC_KEY);
+    localStorage.removeItem('mathcanvas_concept');
+    localStorage.removeItem('mathcanvas_topic');
+    localStorage.removeItem('vision_concept');
+    setUser(null);
     router.push('/');
   };
 
@@ -90,7 +98,7 @@ export default function ChatPage() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
       >
-        <span className="chat-session-logo">MathCanvas</span>
+        <span className="chat-session-logo">Visua AI</span>
         <div className="chat-session-nav-right">
           {user.picture ? (
             <Image src={user.picture} alt="" width={32} height={32} className="avatar" />
@@ -151,7 +159,7 @@ export default function ChatPage() {
               disabled={isTransitioning}
               placeholder="e.g. Explain the unit circle intuitively"
               className="prompt-input"
-              aria-label="Math concept input"
+              aria-label="Concept input"
             />
             <motion.button
               type="submit"

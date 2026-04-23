@@ -10,7 +10,7 @@ interface SuggestionChipsProps {
 export default function SuggestionChips({ onSelect, disabled = false }: SuggestionChipsProps) {
   return (
     <nav
-      aria-label="Math topic suggestions"
+      aria-label="Topic suggestions"
       className="flex gap-2 overflow-x-auto pb-1 max-w-2xl"
       style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
     >
