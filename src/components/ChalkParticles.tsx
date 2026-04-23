@@ -25,7 +25,14 @@ const CHALK_DUST_COLORS: [number, number, number][] = [
   [107, 191, 255], // blue
 ];
 
-export default function ChalkParticles({ count = 30, className = '' }: { count?: number; className?: string }) {
+interface ChalkParticlesProps {
+  count?: number;
+  className?: string;
+  colors?: [number, number, number][];
+}
+
+export default function ChalkParticles({ count = 30, className = '', colors }: ChalkParticlesProps) {
+  const palette = colors && colors.length > 0 ? colors : CHALK_DUST_COLORS;
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const particlesRef = useRef<Particle[]>([]);
   const animRef = useRef<number | null>(null);
@@ -45,7 +52,7 @@ export default function ChalkParticles({ count = 30, className = '' }: { count?:
     window.addEventListener('resize', resize, { passive: true });
 
     const spawnParticle = (): Particle => {
-      const [r, g, b] = CHALK_DUST_COLORS[Math.floor(Math.random() * CHALK_DUST_COLORS.length)];
+      const [r, g, b] = palette[Math.floor(Math.random() * palette.length)];
       return {
         x: Math.random() * canvas.width,
         y: canvas.height * (0.4 + Math.random() * 0.5),
@@ -111,7 +118,7 @@ export default function ChalkParticles({ count = 30, className = '' }: { count?:
       }
       window.removeEventListener('resize', resize);
     };
-  }, [count]);
+  }, [count, palette]);
 
   return (
     <canvas

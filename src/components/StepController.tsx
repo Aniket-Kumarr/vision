@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { FormEvent, useEffect, useRef, useState } from 'react';
 
 interface StepControllerProps {
   /** 1-based index of the currently visible step. */
@@ -13,6 +13,10 @@ interface StepControllerProps {
   finalLabel?: string;
   onNext: () => void;
   onBack: () => void;
+  /** When set, renders a composer above the step row for asking follow-up questions. */
+  onAskFollowUp?: (question: string) => void;
+  isFollowUpPending?: boolean;
+  followUpError?: string | null;
 }
 
 export default function StepController({
@@ -24,7 +28,20 @@ export default function StepController({
   finalLabel = 'Start Over',
   onNext,
   onBack,
+  onAskFollowUp,
+  isFollowUpPending = false,
+  followUpError = null,
 }: StepControllerProps) {
+  const [followUp, setFollowUp] = useState('');
+  const followUpDisabled = isAnimating || isFollowUpPending;
+
+  const handleFollowUpSubmit = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const trimmed = followUp.trim();
+    if (!trimmed || followUpDisabled || !onAskFollowUp) return;
+    onAskFollowUp(trimmed);
+    setFollowUp('');
+  };
   const [displayedNarration, setDisplayedNarration] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const typeRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -93,59 +110,105 @@ export default function StepController({
         className="absolute inset-0 pointer-events-none bg-[linear-gradient(to_top,rgba(10,10,10,0.92)_60%,transparent)]"
       />
 
-      <div className="relative px-6 pb-6 pt-16 flex items-end justify-between gap-4 max-w-[1400px] mx-auto">
-        {/* Step counter */}
-        <div
-          className="flex-shrink-0 pointer-events-auto font-['Caveat',cursive] text-[rgba(245,240,232,0.5)] text-[18px]"
-          aria-label={`Step ${safeStep} of ${safeTotal}`}
-        >
-          Step {safeStep} of {safeTotal}
-        </div>
-
-        {/* Narration text: aria-live so screen readers announce each update */}
-        <div className="flex-1 text-center px-4">
-          <p
-            aria-live="polite"
-            aria-atomic="true"
-            className={`font-['Inter',sans-serif] font-light text-[17px] leading-relaxed text-[rgba(245,240,232,0.92)] max-w-[680px] mx-auto [text-shadow:0_1px_8px_rgba(0,0,0,0.8)] min-h-[28px]${isTyping ? ' typewriter-cursor' : ''}`}
+      <div className="relative px-6 pb-6 pt-16 max-w-[1400px] mx-auto flex flex-col gap-4">
+        {/* Optional follow-up composer (rendered above the step row) */}
+        {onAskFollowUp && (
+          <form
+            className="follow-up-composer pointer-events-auto"
+            onSubmit={handleFollowUpSubmit}
+            aria-label="Ask a follow-up about this lesson"
           >
-            {displayedNarration}
-          </p>
-        </div>
-
-        {/* Navigation buttons */}
-        <div className="flex-shrink-0 flex items-center gap-3 pointer-events-auto">
-          {/* Back button: hidden on step 1 to avoid a dead affordance */}
-          {safeStep > 1 && (
+            <input
+              type="text"
+              value={followUp}
+              onChange={(e) => setFollowUp(e.target.value)}
+              disabled={followUpDisabled}
+              placeholder={
+                isFollowUpPending
+                  ? 'Drawing your follow-up…'
+                  : 'Ask a follow-up — e.g. "why does this work?"'
+              }
+              className="follow-up-input"
+              aria-label="Follow-up question"
+              maxLength={500}
+            />
             <button
-              onClick={onBack}
-              disabled={!canBack}
-              aria-label="Go to previous step"
-              aria-disabled={!canBack}
-              className={`px-5 py-2.5 rounded-lg text-sm font-['Inter',sans-serif] tracking-[0.12em] uppercase transition-all duration-300 border ${
-                canBack
-                  ? 'cursor-pointer text-[rgba(245,240,232,0.7)] border-[rgba(245,240,232,0.25)] hover:border-[rgba(245,240,232,0.45)]'
+              type="submit"
+              className="follow-up-send"
+              disabled={followUpDisabled || !followUp.trim()}
+              aria-label="Send follow-up"
+            >
+              {isFollowUpPending ? (
+                <span className="follow-up-spinner" aria-hidden />
+              ) : (
+                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M3 10 L17 10" />
+                  <path d="M11 4 L17 10 L11 16" />
+                </svg>
+              )}
+            </button>
+            {followUpError ? (
+              <p className="follow-up-error" role="alert">
+                {followUpError}
+              </p>
+            ) : null}
+          </form>
+        )}
+
+        <div className="flex items-end justify-between gap-4">
+          {/* Step counter */}
+          <div
+            className="flex-shrink-0 pointer-events-auto font-['Caveat',cursive] text-[rgba(245,240,232,0.5)] text-[18px]"
+            aria-label={`Step ${safeStep} of ${safeTotal}`}
+          >
+            Step {safeStep} of {safeTotal}
+          </div>
+
+          {/* Narration text: aria-live so screen readers announce each update */}
+          <div className="flex-1 text-center px-4">
+            <p
+              aria-live="polite"
+              aria-atomic="true"
+              className={`font-['Inter',sans-serif] font-light text-[17px] leading-relaxed text-[rgba(245,240,232,0.92)] max-w-[680px] mx-auto [text-shadow:0_1px_8px_rgba(0,0,0,0.8)] min-h-[28px]${isTyping ? ' typewriter-cursor' : ''}`}
+            >
+              {displayedNarration}
+            </p>
+          </div>
+
+          {/* Navigation buttons */}
+          <div className="flex-shrink-0 flex items-center gap-3 pointer-events-auto">
+            {/* Back button: hidden on step 1 to avoid a dead affordance */}
+            {safeStep > 1 && (
+              <button
+                onClick={onBack}
+                disabled={!canBack}
+                aria-label="Go to previous step"
+                aria-disabled={!canBack}
+                className={`px-5 py-2.5 rounded-lg text-sm font-['Inter',sans-serif] tracking-[0.12em] uppercase transition-all duration-300 border ${
+                  canBack
+                    ? 'cursor-pointer text-[rgba(245,240,232,0.7)] border-[rgba(245,240,232,0.25)] hover:border-[rgba(245,240,232,0.45)]'
+                    : 'opacity-30 cursor-not-allowed text-[rgba(245,240,232,0.4)] border-[rgba(245,240,232,0.1)]'
+                } bg-transparent`}
+              >
+                ← Back
+              </button>
+            )}
+
+            {/* Next / Start Over button */}
+            <button
+              onClick={onNext}
+              disabled={!canAdvance}
+              aria-label={isLastStep ? 'Start over from step 1' : `Go to step ${safeStep + 1}`}
+              aria-disabled={!canAdvance}
+              className={`px-6 py-2.5 rounded-lg text-sm font-['Inter',sans-serif] tracking-[0.12em] uppercase transition-all duration-300 border ${
+                canAdvance
+                  ? 'next-ready cursor-pointer text-[#F5F0E8] border-[rgba(245,240,232,0.5)]'
                   : 'opacity-30 cursor-not-allowed text-[rgba(245,240,232,0.4)] border-[rgba(245,240,232,0.1)]'
               } bg-transparent`}
             >
-              ← Back
+              {isLastStep ? finalLabel : 'Next →'}
             </button>
-          )}
-
-          {/* Next / Start Over button */}
-          <button
-            onClick={onNext}
-            disabled={!canAdvance}
-            aria-label={isLastStep ? 'Start over from step 1' : `Go to step ${safeStep + 1}`}
-            aria-disabled={!canAdvance}
-            className={`px-6 py-2.5 rounded-lg text-sm font-['Inter',sans-serif] tracking-[0.12em] uppercase transition-all duration-300 border ${
-              canAdvance
-                ? 'next-ready cursor-pointer text-[#F5F0E8] border-[rgba(245,240,232,0.5)]'
-                : 'opacity-30 cursor-not-allowed text-[rgba(245,240,232,0.4)] border-[rgba(245,240,232,0.1)]'
-            } bg-transparent`}
-          >
-            {isLastStep ? finalLabel : 'Next →'}
-          </button>
+          </div>
         </div>
       </div>
     </div>

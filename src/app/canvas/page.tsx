@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import type { ChalkCanvasHandle } from '@/components/ChalkCanvas';
@@ -8,6 +8,7 @@ import StepController from '@/components/StepController';
 import ChalkParticles from '@/components/ChalkParticles';
 import { Blueprint, Drawing } from '@/lib/types';
 import { VISUA_AI_CONCEPT_KEY, VISUA_AI_TOPIC_KEY } from '@/lib/auth';
+import { addLesson, takeReplay } from '@/lib/lessonHistory';
 
 const ChalkCanvas = dynamic(() => import('@/components/ChalkCanvas'), { ssr: false });
 
@@ -15,6 +16,222 @@ type PageState = 'loading' | 'error' | 'playing';
 
 /** Client wait budget: blueprint generation can take well over 15s. */
 const GENERATE_TIMEOUT_MS = 180_000;
+
+const VOICE_PREF_KEY = 'visua_ai_voice_on';
+const VOICE_ID_KEY = 'visua_ai_voice_id';
+const DEFAULT_VOICE_ID = 'Xb7hH8MSUJpSbSDYk0k2'; // Alice — "Clear, Engaging Educator"
+
+interface ElevenVoice {
+  id: string;
+  name: string;
+  category?: string;
+  description?: string;
+  preview_url?: string;
+}
+
+/**
+ * Fetch ElevenLabs MP3 narration via our /api/narrate proxy and play it.
+ * - Aborts the previous request and stops playback on text change, mute, or unmount.
+ * - Pauses when the tab is hidden, resumes on return.
+ */
+function useNarration(text: string, enabled: boolean, voiceId: string) {
+  useEffect(() => {
+    if (!enabled || !text) return;
+    if (typeof window === 'undefined') return;
+
+    const ctrl = new AbortController();
+    const audio = new Audio();
+    let objectUrl: string | null = null;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const res = await fetch('/api/narrate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text, voiceId }),
+          signal: ctrl.signal,
+        });
+        if (!res.ok) {
+          const j = (await res.json().catch(() => ({}))) as { error?: string };
+          throw new Error(j.error || `narrate ${res.status}`);
+        }
+        if (cancelled) return;
+        const blob = await res.blob();
+        if (cancelled) return;
+        objectUrl = URL.createObjectURL(blob);
+        audio.src = objectUrl;
+        await audio.play();
+      } catch (err) {
+        if ((err as { name?: string }).name === 'AbortError') return;
+        console.error('[Visua AI] narrate failed:', err);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      ctrl.abort();
+      audio.pause();
+      audio.src = '';
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [text, enabled, voiceId]);
+
+  // Pause when tab hidden, resume on return.
+  useEffect(() => {
+    if (!enabled || typeof document === 'undefined') return;
+    const audios = () => Array.from(document.querySelectorAll('audio'));
+    const onVisibility = () => {
+      if (document.hidden) audios().forEach((a) => a.pause());
+      // Don't auto-resume — playback may have ended; let the next narration trigger naturally.
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, [enabled]);
+}
+
+interface VoiceControlProps {
+  enabled: boolean;
+  onToggle: () => void;
+  voices: ElevenVoice[];
+  voicesLoading: boolean;
+  voicesError: string | null;
+  selectedVoiceId: string;
+  onSelectVoiceId: (id: string) => void;
+}
+
+function VoiceControl({
+  enabled,
+  onToggle,
+  voices,
+  voicesLoading,
+  voicesError,
+  selectedVoiceId,
+  onSelectVoiceId,
+}: VoiceControlProps) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onClick = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', onClick);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onClick);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  const sorted = useMemo(() => {
+    return [...voices].sort((a, b) => a.name.localeCompare(b.name));
+  }, [voices]);
+
+  const toggleLabel = enabled ? 'Mute narration' : 'Unmute narration';
+
+  return (
+    <div ref={wrapRef} className="voice-control">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-label={toggleLabel}
+        aria-pressed={enabled}
+        title={toggleLabel}
+        className={`voice-toggle ${enabled ? 'is-on' : 'is-off'}`}
+      >
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden
+        >
+          <path d="M11 5 L6 9 H2 V15 H6 L11 19 Z" />
+          {enabled ? (
+            <>
+              <path d="M15.5 8.5 Q18 12 15.5 15.5" />
+              <path d="M18.5 6 Q22.5 12 18.5 18" />
+            </>
+          ) : (
+            <>
+              <path d="M16 9 L22 15" />
+              <path d="M22 9 L16 15" />
+            </>
+          )}
+        </svg>
+      </button>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-label="Choose narration voice"
+        aria-expanded={open}
+        aria-haspopup="listbox"
+        title="Choose voice"
+        className={`voice-picker-btn ${open ? 'is-open' : ''}`}
+      >
+        <svg
+          viewBox="0 0 12 8"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden
+        >
+          <path d="M2 2 L6 6 L10 2" />
+        </svg>
+      </button>
+      {open && (
+        <div className="voice-popover" role="listbox" aria-label="Narration voice">
+          <p className="voice-popover-header">
+            ElevenLabs voice
+            <span className="voice-popover-sub">Pick one — your choice persists.</span>
+          </p>
+          <div className="voice-popover-list">
+            {voicesLoading ? (
+              <p className="voice-popover-empty">Loading voices…</p>
+            ) : voicesError ? (
+              <p className="voice-popover-empty voice-popover-error">{voicesError}</p>
+            ) : sorted.length === 0 ? (
+              <p className="voice-popover-empty">No voices found in your ElevenLabs account.</p>
+            ) : (
+              sorted.map((v) => (
+                <button
+                  key={v.id}
+                  type="button"
+                  role="option"
+                  aria-selected={selectedVoiceId === v.id}
+                  className={`voice-option ${selectedVoiceId === v.id ? 'is-selected' : ''}`}
+                  onClick={() => {
+                    onSelectVoiceId(v.id);
+                    setOpen(false);
+                  }}
+                >
+                  <span className="voice-option-name">{v.name}</span>
+                  <span className="voice-option-meta">
+                    {v.category ? <span className="voice-option-badge">{v.category}</span> : null}
+                    {selectedVoiceId === v.id ? (
+                      <span className="voice-option-check" aria-hidden>
+                        ✓
+                      </span>
+                    ) : null}
+                  </span>
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function CanvasPage() {
   const router = useRouter();
@@ -29,8 +246,83 @@ export default function CanvasPage() {
   const [currentNarration, setCurrentNarration] = useState('');
   const [concept, setConcept] = useState('');
   const [topicLabel, setTopicLabel] = useState('');
+  const [voiceOn, setVoiceOn] = useState(false);
+  const [voiceId, setVoiceId] = useState<string>(DEFAULT_VOICE_ID);
+  const [voices, setVoices] = useState<ElevenVoice[]>([]);
+  const [voicesLoading, setVoicesLoading] = useState(false);
+  const [voicesError, setVoicesError] = useState<string | null>(null);
+  const voicesFetchedRef = useRef(false);
 
   const restartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Hydrate persisted voice preferences from localStorage after mount (SSR-safe).
+  useEffect(() => {
+    try {
+      setVoiceOn(localStorage.getItem(VOICE_PREF_KEY) === '1');
+      const savedId = localStorage.getItem(VOICE_ID_KEY);
+      if (savedId) setVoiceId(savedId);
+    } catch {
+      /* ignore storage errors */
+    }
+  }, []);
+
+  const toggleVoice = useCallback(() => {
+    setVoiceOn((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(VOICE_PREF_KEY, next ? '1' : '0');
+      } catch {
+        /* ignore storage errors */
+      }
+      return next;
+    });
+  }, []);
+
+  const handleSelectVoiceId = useCallback((id: string) => {
+    setVoiceId(id);
+    try {
+      localStorage.setItem(VOICE_ID_KEY, id);
+    } catch {
+      /* ignore storage errors */
+    }
+  }, []);
+
+  // Lazy-load the ElevenLabs voice list once — when the user enables narration
+  // OR opens the picker for the first time. Avoids a wasteful API call for users
+  // who never turn voice on.
+  const ensureVoicesLoaded = useCallback(() => {
+    if (voicesFetchedRef.current) return;
+    voicesFetchedRef.current = true;
+    setVoicesLoading(true);
+    setVoicesError(null);
+    fetch('/api/voices')
+      .then(async (r) => {
+        if (!r.ok) {
+          const j = (await r.json().catch(() => ({}))) as { error?: string };
+          throw new Error(j.error || `voices ${r.status}`);
+        }
+        return (await r.json()) as { voices: ElevenVoice[] };
+      })
+      .then(({ voices: vs }) => setVoices(vs))
+      .catch((err: Error) => {
+        console.error('[Visua AI] voices fetch failed:', err);
+        setVoicesError(err.message || 'Could not load voices.');
+        voicesFetchedRef.current = false; // allow retry next open
+      })
+      .finally(() => setVoicesLoading(false));
+  }, []);
+
+  useEffect(() => {
+    if (voiceOn) ensureVoicesLoaded();
+  }, [voiceOn, ensureVoicesLoaded]);
+
+  const onToggleVoice = useCallback(() => {
+    ensureVoicesLoaded();
+    toggleVoice();
+  }, [ensureVoicesLoaded, toggleVoice]);
+
+  // Stream each step's narration through ElevenLabs when voice is enabled.
+  useNarration(currentNarration, voiceOn, voiceId);
 
   // Load concept from localStorage, then fetch blueprint
   useEffect(() => {
@@ -50,6 +342,15 @@ export default function CanvasPage() {
     setTopicLabel(topic);
     setPageState('loading');
     setErrorMsg('');
+
+    // If the user re-opened a past lesson from history, /chat will have
+    // stashed the cached blueprint here — replay it instantly with no API call.
+    const cached = takeReplay();
+    if (cached && Array.isArray(cached.steps) && cached.steps.length > 0) {
+      setBlueprint(cached);
+      setPageState('playing');
+      return;
+    }
 
     const controller = new AbortController();
     const requestTimeout = setTimeout(() => controller.abort(), GENERATE_TIMEOUT_MS);
@@ -126,6 +427,9 @@ export default function CanvasPage() {
         }
         setBlueprint(bp);
         setPageState('playing');
+        // Persist the freshly-generated lesson so it appears in /chat history
+        // and can be replayed later without another Anthropic call.
+        addLesson({ topic, concept: saved, blueprint: bp });
       })
       .catch((err) => {
         if (err.name === 'AbortError') {
@@ -252,6 +556,47 @@ export default function CanvasPage() {
     setCurrentNarration('');
     playStep(prevIdx, blueprint);
   }, [blueprint, isAnimating, currentStepIndex, playStep]);
+
+  const [isFollowUpPending, setIsFollowUpPending] = useState(false);
+  const [followUpError, setFollowUpError] = useState<string | null>(null);
+
+  const handleAskFollowUp = useCallback(
+    async (question: string) => {
+      if (!blueprint || isFollowUpPending || isAnimating) return;
+      setIsFollowUpPending(true);
+      setFollowUpError(null);
+      try {
+        const r = await fetch('/api/followup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ blueprint, question }),
+        });
+        if (!r.ok) {
+          const j = (await r.json().catch(() => ({}))) as { error?: string };
+          throw new Error(j.error || `follow-up ${r.status}`);
+        }
+        const data = (await r.json()) as { drawings: Drawing[]; narration: string };
+        if (!Array.isArray(data.drawings) || typeof data.narration !== 'string') {
+          throw new Error('Invalid follow-up response shape.');
+        }
+        // Play new drawings on top of the existing canvas (no reset), then
+        // surface the narration so it types out and ElevenLabs speaks it.
+        setIsAnimating(true);
+        setCurrentNarration('');
+        playDrawings(data.drawings, () => {
+          setIsAnimating(false);
+          setCurrentNarration(data.narration);
+        });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Follow-up failed.';
+        console.error('[Visua AI] follow-up failed:', err);
+        setFollowUpError(message);
+      } finally {
+        setIsFollowUpPending(false);
+      }
+    },
+    [blueprint, isAnimating, isFollowUpPending, playDrawings],
+  );
 
   // Cancel any pending restart timer on unmount
   useEffect(() => {
@@ -388,30 +733,41 @@ export default function CanvasPage() {
               background: 'linear-gradient(to bottom, rgba(10,10,10,0.8) 60%, transparent)',
             }}
           />
-          <div className="relative">
-            <p
-              style={{
-                fontFamily: "'Inter', sans-serif",
-                fontSize: 12,
-                color: 'rgba(245,240,232,0.45)',
-                letterSpacing: '0.16em',
-                textTransform: 'uppercase',
-                marginBottom: 2,
-              }}
-            >
-              Visua AI
-            </p>
-            <h2
-              style={{
-                fontFamily: "'Caveat', cursive",
-                fontSize: 24,
-                fontWeight: 600,
-                color: 'rgba(245,240,232,0.85)',
-                letterSpacing: '0.02em',
-              }}
-            >
-              {blueprint.title}
-            </h2>
+          <div className="relative flex items-center gap-3">
+            <VoiceControl
+              enabled={voiceOn}
+              onToggle={onToggleVoice}
+              voices={voices}
+              voicesLoading={voicesLoading}
+              voicesError={voicesError}
+              selectedVoiceId={voiceId}
+              onSelectVoiceId={handleSelectVoiceId}
+            />
+            <div>
+              <p
+                style={{
+                  fontFamily: "'Inter', sans-serif",
+                  fontSize: 12,
+                  color: 'rgba(245,240,232,0.45)',
+                  letterSpacing: '0.16em',
+                  textTransform: 'uppercase',
+                  marginBottom: 2,
+                }}
+              >
+                Visua AI
+              </p>
+              <h2
+                style={{
+                  fontFamily: "'Caveat', cursive",
+                  fontSize: 24,
+                  fontWeight: 600,
+                  color: 'rgba(245,240,232,0.85)',
+                  letterSpacing: '0.02em',
+                }}
+              >
+                {blueprint.title}
+              </h2>
+            </div>
           </div>
           <button
             onClick={handleHome}
@@ -443,6 +799,9 @@ export default function CanvasPage() {
           finalLabel="Try Another"
           onNext={handleNext}
           onBack={handlePrevStep}
+          onAskFollowUp={handleAskFollowUp}
+          isFollowUpPending={isFollowUpPending}
+          followUpError={followUpError}
         />
       )}
 
