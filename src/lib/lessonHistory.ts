@@ -11,7 +11,10 @@ export interface LessonHistoryItem {
   id: string;
   topic: string;
   concept: string;
-  blueprint: Blueprint;
+  /** The full lesson data. Optional on legacy entries written before the
+   *  history schema stored blueprints — those entries are listed but cannot
+   *  be replayed byte-for-byte (clicking them re-generates). */
+  blueprint?: Blueprint;
   createdAt: number;
   /** Which subject this lesson belongs to. Older entries without this field
    *  default to 'math' since physics was added later. */
@@ -34,8 +37,9 @@ function isHistoryItem(x: unknown): x is LessonHistoryItem {
     typeof o.topic === 'string' &&
     typeof o.concept === 'string' &&
     typeof o.createdAt === 'number' &&
-    typeof o.blueprint === 'object' &&
-    o.blueprint !== null &&
+    // blueprint is optional for legacy entries; when present it must be an object.
+    (o.blueprint === undefined ||
+      (typeof o.blueprint === 'object' && o.blueprint !== null)) &&
     validSubject
   );
 }
