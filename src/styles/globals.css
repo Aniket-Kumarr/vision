@@ -2087,8 +2087,20 @@ canvas {
 
 .welcome-card-physics {
   background:
-    linear-gradient(135deg, rgba(37, 96, 96, 0.12) 0%, rgba(58, 110, 80, 0.14) 100%),
+    linear-gradient(135deg, rgba(178, 90, 200, 0.14) 0%, rgba(110, 90, 200, 0.16) 100%),
     rgba(255, 252, 246, 0.92);
+}
+
+.welcome-card-biology {
+  background:
+    linear-gradient(135deg, rgba(120, 200, 120, 0.18) 0%, rgba(150, 230, 170, 0.22) 100%),
+    #cffdbc;
+}
+
+.welcome-card-cs {
+  background:
+    linear-gradient(135deg, rgba(120, 200, 230, 0.18) 0%, rgba(150, 210, 255, 0.22) 100%),
+    #bef0ff;
 }
 
 .welcome-card-noise {
@@ -3410,3 +3422,191 @@ canvas {
 .chat-session-page.subject-physics .chat-dropzone-card {
   border-color: rgba(110, 86, 160, 0.6);
 }
+
+/* --------------------------------------------------------------------------
+ * Per-subject page themes
+ * --------------------------------------------------------------------------
+ * Biology → leaf green (#cffdbc). CS → sky blue (#bef0ff). Physics → violet.
+ * Math keeps the warm cream chalkboard-lecture default.
+ *
+ * Applied to the outer .chat-session-page wrapper on /chat. The canvas
+ * drawing surface stays black — chalk needs dark to show up.
+ * -------------------------------------------------------------------------- */
+.chat-session-page.subject-biology {
+  background-color: #cffdbc;
+  background-image:
+    radial-gradient(100% 70% at 10% -10%, rgba(60, 160, 90, 0.18), transparent 52%),
+    radial-gradient(80% 55% at 95% 0%, rgba(40, 140, 100, 0.14), transparent 48%),
+    radial-gradient(60% 50% at 50% 100%, rgba(80, 180, 120, 0.1), transparent 45%);
+  color: #1a3d22;
+}
+
+.chat-session-page.subject-biology .chat-session-nav {
+  background: rgba(220, 250, 205, 0.92);
+  border-bottom-color: rgba(26, 61, 34, 0.12);
+}
+
+.chat-session-page.subject-biology .chat-session-logo,
+.chat-session-page.subject-biology .chat-subject-pill,
+.chat-session-page.subject-biology .chat-bubble,
+.chat-session-page.subject-biology .chat-eyebrow {
+  color: #1a3d22;
+}
+
+.chat-session-page.subject-biology .ghost-btn {
+  border-color: rgba(26, 61, 34, 0.22);
+  color: #1a3d22;
+}
+
+.chat-session-page.subject-cs {
+  background-color: #bef0ff;
+  background-image:
+    radial-gradient(100% 70% at 10% -10%, rgba(60, 130, 200, 0.16), transparent 52%),
+    radial-gradient(80% 55% at 95% 0%, rgba(80, 160, 220, 0.14), transparent 48%),
+    radial-gradient(60% 50% at 50% 100%, rgba(100, 180, 230, 0.1), transparent 45%);
+  color: #0e2a3f;
+}
+
+.chat-session-page.subject-cs .chat-session-nav {
+  background: rgba(200, 240, 255, 0.92);
+  border-bottom-color: rgba(14, 42, 63, 0.12);
+}
+
+.chat-session-page.subject-cs .chat-session-logo,
+.chat-session-page.subject-cs .chat-subject-pill,
+.chat-session-page.subject-cs .chat-bubble,
+.chat-session-page.subject-cs .chat-eyebrow {
+  color: #0e2a3f;
+}
+
+.chat-session-page.subject-cs .ghost-btn {
+  border-color: rgba(14, 42, 63, 0.22);
+  color: #0e2a3f;
+}
+
+.chat-session-page.subject-physics {
+  background-color: #f0e8ff;
+  background-image:
+    radial-gradient(100% 70% at 10% -10%, rgba(150, 100, 210, 0.16), transparent 52%),
+    radial-gradient(80% 55% at 95% 0%, rgba(110, 90, 200, 0.12), transparent 48%),
+    radial-gradient(60% 50% at 50% 100%, rgba(180, 150, 220, 0.08), transparent 45%);
+  color: #2c1245;
+}
+
+.chat-session-page.subject-physics .chat-session-nav {
+  background: rgba(240, 232, 255, 0.92);
+  border-bottom-color: rgba(44, 18, 69, 0.1);
+}
+
+/* --- Body / HTML backdrop follows the subject too, so edges past the
+   .chat-session-page min-height blend rather than hitting raw --chalkboard. */
+body[data-subject='biology'] { background: #cffdbc; }
+body[data-subject='cs'] { background: #bef0ff; }
+body[data-subject='physics'] { background: #f0e8ff; }
+
+/* --------------------------------------------------------------------------
+ * Persona icons
+ * -------------------------------------------------------------------------- */
+.persona-pill-icon,
+.persona-option-icon,
+.persona-row-pill-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  line-height: 1;
+  margin-right: 6px;
+  flex-shrink: 0;
+}
+
+.persona-option-icon {
+  width: 22px;
+  height: 22px;
+  font-size: 16px;
+  margin-right: 8px;
+}
+
+.persona-row-pill-icon {
+  font-size: 14px;
+  margin-right: 4px;
+}
+
+/* --------------------------------------------------------------------------
+ * Readability overrides: chat bubbles inherit a cream-on-dark palette from
+ * the landing page, but /chat + /welcome have light cream/green/blue
+ * backgrounds. Without these overrides the bubble text reads ~cream on
+ * ~cream and disappears.
+ * -------------------------------------------------------------------------- */
+.chat-session-page .bot-bubble,
+.chat-session-page .user-bubble,
+.chat-session-page .chat-bubble {
+  color: #2c1a0e;
+  background: rgba(255, 255, 255, 0.5);
+  border-color: rgba(44, 26, 14, 0.15);
+}
+
+.chat-session-page .bot-bubble {
+  border-left-color: rgba(44, 26, 14, 0.35);
+}
+
+.chat-session-page .user-bubble {
+  border-color: rgba(192, 90, 40, 0.35);
+  color: #7a3a10;
+  background: rgba(255, 235, 210, 0.65);
+}
+
+.chat-session-page.subject-biology .bot-bubble,
+.chat-session-page.subject-biology .user-bubble,
+.chat-session-page.subject-biology .chat-bubble {
+  color: #1a3d22;
+  border-color: rgba(26, 61, 34, 0.18);
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.chat-session-page.subject-biology .user-bubble {
+  color: #0e3a1a;
+  background: rgba(180, 240, 200, 0.7);
+  border-color: rgba(40, 120, 60, 0.4);
+}
+
+.chat-session-page.subject-cs .bot-bubble,
+.chat-session-page.subject-cs .user-bubble,
+.chat-session-page.subject-cs .chat-bubble {
+  color: #0e2a3f;
+  border-color: rgba(14, 42, 63, 0.18);
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.chat-session-page.subject-cs .user-bubble {
+  color: #083050;
+  background: rgba(180, 225, 250, 0.7);
+  border-color: rgba(40, 100, 150, 0.4);
+}
+
+.chat-session-page.subject-physics .bot-bubble,
+.chat-session-page.subject-physics .user-bubble,
+.chat-session-page.subject-physics .chat-bubble {
+  color: #231a3c;
+  border-color: rgba(35, 26, 60, 0.18);
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.chat-session-page.subject-physics .user-bubble {
+  color: #2c1245;
+  background: rgba(220, 205, 250, 0.7);
+  border-color: rgba(110, 86, 160, 0.4);
+}
+
+/* Prompt input: dark-chalkboard styling inherits onto light chat bg too. */
+.chat-session-page .chalk-input,
+.chat-session-page .prompt-input {
+  color: #2c1a0e;
+  background: rgba(255, 255, 255, 0.75);
+  border-color: rgba(44, 26, 14, 0.25);
+}
+
+.chat-session-page.subject-biology .chalk-input,
+.chat-session-page.subject-biology .prompt-input { color: #1a3d22; border-color: rgba(26, 61, 34, 0.25); }
+
+.chat-session-page.subject-cs .chalk-input,
+.chat-session-page.subject-cs .prompt-input { color: #0e2a3f; border-color: rgba(14, 42, 63, 0.25); }

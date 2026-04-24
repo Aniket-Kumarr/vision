@@ -71,6 +71,7 @@ export default function PersonaPicker({ value, onChange, compact = false }: Pers
           onClick={() => setOpen((v) => !v)}
           title="Change narration voice"
         >
+          <span className="persona-pill-icon" aria-hidden>{PERSONA_LABELS[value].icon}</span>
           Voice: {currentLabel}
           <svg
             className="persona-pill-caret"
@@ -96,6 +97,7 @@ export default function PersonaPicker({ value, onChange, compact = false }: Pers
                 className={`persona-option ${value === p ? 'is-selected' : ''}`}
                 onClick={() => handleSelect(p)}
               >
+                <span className="persona-option-icon" aria-hidden>{PERSONA_LABELS[p].icon}</span>
                 <span className="persona-option-label">{PERSONA_LABELS[p].label}</span>
                 <span className="persona-option-oneliner">{PERSONA_LABELS[p].oneLiner}</span>
                 {value === p && <span className="persona-option-check" aria-hidden>✓</span>}
@@ -122,6 +124,7 @@ export default function PersonaPicker({ value, onChange, compact = false }: Pers
             onClick={() => handleSelect(p)}
             title={PERSONA_LABELS[p].oneLiner}
           >
+            <span className="persona-row-pill-icon" aria-hidden>{PERSONA_LABELS[p].icon}</span>
             {PERSONA_LABELS[p].label}
           </button>
         ))}

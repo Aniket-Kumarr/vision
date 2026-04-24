@@ -360,6 +360,17 @@ function ChatPageInner() {
     setPersona(readStoredPersona());
   }, []);
 
+  // Mirror the active subject onto <body data-subject="..."> so theme CSS
+  // can tint the page backdrop outside the <main> wrapper and persist for
+  // the brief moment during route transitions before the next page mounts.
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    document.body.dataset.subject = subject;
+    return () => {
+      // Don't clear on unmount — the next route (/canvas) reads the same key.
+    };
+  }, [subject]);
+
   const chips =
     subject === 'physics'
       ? PHYSICS_SUGGESTION_CHIPS

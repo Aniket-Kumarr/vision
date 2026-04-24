@@ -188,11 +188,11 @@ export interface Blueprint {
 
 export type Persona = 'default' | 'feynman' | 'coach' | 'poet' | 'rapper' | 'grandma';
 
-export const PERSONA_LABELS: Record<Persona, { label: string; oneLiner: string }> = {
-  default: { label: 'Default',  oneLiner: 'clear, visual, 3Blue1Brown-style' },
-  feynman: { label: 'Feynman',  oneLiner: 'like Feynman — intuitive, story-first' },
-  coach:   { label: 'Coach',    oneLiner: 'like a coach — direct, punchy, hype' },
-  poet:    { label: 'Poet',     oneLiner: 'like a poet — metaphors, cadence' },
-  rapper:  { label: 'Rapper',   oneLiner: 'like a rapper — rhythm + rhymes' },
-  grandma: { label: 'Grandma',  oneLiner: 'like grandma — gentle, warm, analogies' },
+export const PERSONA_LABELS: Record<Persona, { label: string; oneLiner: string; icon: string }> = {
+  default: { label: 'Default',  oneLiner: 'clear, visual, 3Blue1Brown-style',        icon: '✦' },
+  feynman: { label: 'Feynman',  oneLiner: 'like Feynman — intuitive, story-first',   icon: '🧪' },
+  coach:   { label: 'Coach',    oneLiner: 'like a coach — direct, punchy, hype',     icon: '📣' },
+  poet:    { label: 'Poet',     oneLiner: 'like a poet — metaphors, cadence',        icon: '🪶' },
+  rapper:  { label: 'Rapper',   oneLiner: 'like a rapper — rhythm + rhymes',         icon: '🎤' },
+  grandma: { label: 'Grandma',  oneLiner: 'like grandma — gentle, warm, analogies',  icon: '🧶' },
 };
