@@ -1,6 +1,16 @@
 'use client';
 
-import { FormEvent, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  ChangeEvent,
+  DragEvent,
+  FormEvent,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
@@ -55,6 +65,7 @@ import {
   csPromptForUserConcept,
 } from '@/lib/csPrompts';
 import { detectSubjectScope } from '@/lib/subjectScope';
+import type { Blueprint } from '@/lib/types';
 
 type Subject = 'math' | 'physics' | 'chemistry' | 'biology' | 'music' | 'cs';
 import {
@@ -64,6 +75,23 @@ import {
   removeLesson,
   setReplay,
 } from '@/lib/lessonHistory';
+
+/** Image upload constraints — kept in sync with /api/generate-from-image. */
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+const ACCEPTED_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
+
+function describeImageValidation(file: File): string | null {
+  if (!ACCEPTED_IMAGE_TYPES.has(file.type)) {
+    return 'That file type is not supported. Use PNG, JPEG, WEBP, or GIF.';
+  }
+  if (file.size > MAX_UPLOAD_BYTES) {
+    return 'That image is larger than 10 MB. Please upload a smaller photo.';
+  }
+  if (file.size === 0) {
+    return 'That file is empty.';
+  }
+  return null;
+}
 
 function relativeTime(ts: number): string {
   const d = (Date.now() - ts) / 1000;
@@ -303,6 +331,22 @@ function ChatPageInner() {
   const [showDifficultyPicker, setShowDifficultyPicker] = useState(false);
   const [persona, setPersona] = useState<Persona>('default');
 
+  // --- Image upload state ---
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [uploadPreview, setUploadPreview] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [isDragActive, setIsDragActive] = useState(false);
+  // Track nested dragenter/dragleave events so overlay doesn't flicker.
+  const dragCounterRef = useRef(0);
+
+  // Revoke the preview object URL when we replace it or unmount — avoids leaks.
+  useEffect(() => {
+    return () => {
+      if (uploadPreview) URL.revokeObjectURL(uploadPreview);
+    };
+  }, [uploadPreview]);
+
   const subject: Subject = useMemo(() => {
     const q = searchParams.get('subject');
     if (q === 'math' || q === 'physics' || q === 'chemistry' || q === 'biology' || q === 'music' || q === 'cs') return q;
@@ -426,6 +470,130 @@ function ChatPageInner() {
     startLesson(item.topic, item.concept);
   };
 
+  /**
+   * Upload an image, send it to /api/generate-from-image, then hand the
+   * returned blueprint off to /canvas using the same localStorage protocol the
+   * typed-concept path uses (set replay so /canvas doesn't re-call /api).
+   */
+  const uploadImage = useCallback(
+    async (file: File) => {
+      if (isTransitioning || isUploading) return;
+      const validation = describeImageValidation(file);
+      if (validation) {
+        setUploadError(validation);
+        return;
+      }
+      setUploadError(null);
+
+      // Show a thumbnail in the thread while we wait.
+      if (uploadPreview) URL.revokeObjectURL(uploadPreview);
+      const previewUrl = URL.createObjectURL(file);
+      setUploadPreview(previewUrl);
+      setIsUploading(true);
+
+      try {
+        const form = new FormData();
+        form.append('image', file);
+        form.append('subject', subject);
+        const hint = concept.trim();
+        if (hint) form.append('concept', hint);
+
+        const res = await fetch('/api/generate-from-image', {
+          method: 'POST',
+          body: form,
+        });
+
+        if (!res.ok) {
+          let message = `Upload failed (${res.status})`;
+          try {
+            const body = (await res.json()) as { error?: string };
+            if (typeof body?.error === 'string' && body.error.trim()) {
+              message = body.error.trim();
+            }
+          } catch {
+            /* body wasn't JSON; keep default */
+          }
+          throw new Error(message);
+        }
+
+        const data = (await res.json()) as { blueprint?: Blueprint; error?: string };
+        if (!data.blueprint) {
+          throw new Error(data.error ?? 'No blueprint returned.');
+        }
+
+        // Hand off exactly like the typed-concept path: stash the replay
+        // so /canvas renders without hitting /api/generate again.
+        setReplay(data.blueprint);
+        const topic = (data.blueprint.title || 'Image lesson').slice(0, 120);
+        // Persist a minimal concept string for downstream screens (history,
+        // follow-up questions) that read it from localStorage.
+        const storedConcept = hint
+          ? `Image upload — ${hint}`
+          : `Image upload — ${topic}`;
+        startLesson(topic, storedConcept);
+      } catch (err) {
+        const message = err instanceof Error && err.message ? err.message : 'Upload failed.';
+        setUploadError(message);
+        setIsUploading(false);
+        // Leave the thumbnail visible so the user sees which upload failed.
+      }
+    },
+    // startLesson is stable within the render (closure over router) — no need to memoise.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [concept, isTransitioning, isUploading, subject, uploadPreview],
+  );
+
+  const onFileInputChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    // Reset the input so re-selecting the same file still fires change.
+    e.target.value = '';
+    if (file) void uploadImage(file);
+  };
+
+  const onPickImage = () => {
+    if (isTransitioning || isUploading) return;
+    setUploadError(null);
+    fileInputRef.current?.click();
+  };
+
+  const clearUpload = () => {
+    if (uploadPreview) URL.revokeObjectURL(uploadPreview);
+    setUploadPreview(null);
+    setUploadError(null);
+  };
+
+  // --- Drag and drop ---
+  const onDragEnter = (e: DragEvent<HTMLElement>) => {
+    if (isTransitioning || isUploading) return;
+    if (!Array.from(e.dataTransfer.types ?? []).includes('Files')) return;
+    e.preventDefault();
+    dragCounterRef.current += 1;
+    setIsDragActive(true);
+  };
+
+  const onDragOver = (e: DragEvent<HTMLElement>) => {
+    if (isTransitioning || isUploading) return;
+    if (!Array.from(e.dataTransfer.types ?? []).includes('Files')) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  };
+
+  const onDragLeave = (e: DragEvent<HTMLElement>) => {
+    if (isTransitioning || isUploading) return;
+    e.preventDefault();
+    dragCounterRef.current = Math.max(0, dragCounterRef.current - 1);
+    if (dragCounterRef.current === 0) setIsDragActive(false);
+  };
+
+  const onDrop = (e: DragEvent<HTMLElement>) => {
+    if (isTransitioning || isUploading) return;
+    e.preventDefault();
+    dragCounterRef.current = 0;
+    setIsDragActive(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) void uploadImage(file);
+  };
+
   const onSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const raw = concept.trim();
@@ -493,8 +661,36 @@ function ChatPageInner() {
     <main
       className={`chat-session-page subject-${subject} ${
         isTransitioning ? 'is-transitioning' : ''
-      }`}
+      } ${isDragActive ? 'is-drag-active' : ''}`}
+      onDragEnter={onDragEnter}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
     >
+      {/* Drop-zone overlay — appears when the user drags an image over the page */}
+      {isDragActive ? (
+        <div className="chat-dropzone-overlay" aria-hidden>
+          <div className="chat-dropzone-card">
+            <svg
+              width="48"
+              height="48"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <rect x="3" y="3" width="18" height="18" rx="2" />
+              <circle cx="8.5" cy="8.5" r="1.5" />
+              <path d="m21 15-5-5L5 21" />
+            </svg>
+            <p>Drop your image here</p>
+            <p className="chat-dropzone-sub">PNG, JPEG, WEBP, or GIF — up to 10 MB</p>
+          </div>
+        </div>
+      ) : null}
+
       {/* Ambient warm chalk dust drifting up — subtle, low count */}
       <ChalkParticles
         count={22}
@@ -619,22 +815,71 @@ function ChatPageInner() {
                 <Typewriter
                   text={
                     subject === 'physics'
-                      ? "I'm ready when you are. Ask about any topic — free-body diagrams, projectile motion, energy, waves, or something you're stuck on in class."
+                      ? "I'm ready when you are. Ask about any topic — free-body diagrams, projectile motion, energy, waves, or something you're stuck on in class. You can also upload a photo of a problem."
                       : subject === 'chemistry'
-                        ? "I'm ready when you are. Ask about any chemistry topic — orbital shapes, reaction mechanisms, titration curves, or something you're stuck on in class."
+                        ? "I'm ready when you are. Ask about any chemistry topic — orbital shapes, reaction mechanisms, titration curves, or something you're stuck on in class. You can also upload a photo."
                         : subject === 'biology'
-                          ? "I'm ready when you are. Ask about any biology topic — action potentials, the Krebs cycle, Punnett squares, or something you're stuck on in class."
+                          ? "I'm ready when you are. Ask about any biology topic — action potentials, the Krebs cycle, Punnett squares, or something you're stuck on in class. You can also upload a photo."
                           : subject === 'music'
-                            ? "I'm ready when you are. Ask about any music theory topic — circle of fifths, chord voicings, scales, modes, or something you're stuck on."
+                            ? "I'm ready when you are. Ask about any music theory topic — circle of fifths, chord voicings, scales, modes, or something you're stuck on. You can also upload a photo."
                             : subject === 'cs'
-                              ? "I'm ready when you are. Ask about any algorithm or data structure — bubble sort, BFS, recursion trees, hash tables, binary search, or anything you want to visualize."
-                              : "I'm ready when you are. Ask about any topic — unit circle, derivatives, area puzzles, or something you're stuck on in class."
+                              ? "I'm ready when you are. Ask about any algorithm or data structure — bubble sort, BFS, recursion trees, hash tables, binary search, or anything you want to visualize. You can also upload a photo."
+                              : "I'm ready when you are. Ask about any topic — unit circle, derivatives, area puzzles, or something you're stuck on in class. You can also upload a photo of a problem."
                   }
                   startDelayMs={650}
                   charMs={14}
                 />
               </div>
             </motion.div>
+
+            {uploadPreview ? (
+              <motion.div
+                className="chat-user-row chat-user-row--image"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+              >
+                <div className="user-bubble chat-bubble chat-image-bubble">
+                  {/* Native img is intentional — previewUrl is a local object URL
+                      that next/image's loader cannot stream or optimize. */}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={uploadPreview}
+                    alt="Uploaded problem"
+                    className="chat-image-thumb"
+                  />
+                  <div className="chat-image-meta">
+                    {isUploading ? (
+                      <span className="chat-image-status">
+                        <span className="chat-image-spinner" aria-hidden />
+                        Reading your image…
+                      </span>
+                    ) : (
+                      <span className="chat-image-status">Image attached</span>
+                    )}
+                    {!isUploading ? (
+                      <button
+                        type="button"
+                        className="chat-image-remove"
+                        onClick={clearUpload}
+                        aria-label="Remove uploaded image"
+                      >
+                        ×
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              </motion.div>
+            ) : null}
+
+            {uploadError ? (
+              <div className="chat-error-row" role="alert" aria-live="polite">
+                <div className="chat-error-bubble">
+                  <strong>Couldn&apos;t use that image.</strong>
+                  <span>{uploadError}</span>
+                </div>
+              </div>
+            ) : null}
           </div>
 
           <p className="prompt-label">What do you want to understand?</p>
@@ -726,12 +971,43 @@ function ChatPageInner() {
           ) : null}
 
           <form onSubmit={onSubmit} className="prompt-form">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/gif"
+              className="chat-file-input"
+              onChange={onFileInputChange}
+              tabIndex={-1}
+              aria-hidden
+            />
+            <button
+              type="button"
+              className="chat-attach-btn"
+              onClick={onPickImage}
+              disabled={isTransitioning || isUploading}
+              aria-label="Upload an image of a problem"
+              title="Upload an image (PNG, JPEG, WEBP, GIF — up to 10 MB)"
+            >
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden
+              >
+                <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 17.98 8.9l-8.58 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+              </svg>
+            </button>
             <div className="prompt-form-input-wrapper">
               <input
                 type="text"
                 value={concept}
                 onChange={(e) => setConcept(e.target.value)}
-                disabled={isTransitioning}
+                disabled={isTransitioning || isUploading}
                 placeholder={
                   subject === 'physics'
                     ? 'e.g. Why does a projectile travel in a parabola?'
@@ -750,12 +1026,12 @@ function ChatPageInner() {
               />
               <VoiceInputButton
                 onTranscript={(text) => setConcept(text)}
-                disabled={isTransitioning}
+                disabled={isTransitioning || isUploading}
               />
             </div>
             <motion.button
               type="submit"
-              disabled={isTransitioning || !concept.trim()}
+              disabled={isTransitioning || isUploading || !concept.trim()}
               className="primary-btn"
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.97 }}
