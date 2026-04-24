@@ -1,12 +1,18 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
 import ChalkParticles from '@/components/ChalkParticles';
-import { VISUA_AI_SUBJECT_KEY, VISUA_AI_USER_KEY, type VisuaAiUser } from '@/lib/auth';
+import {
+  VISUA_AI_CONCEPT_KEY,
+  VISUA_AI_SUBJECT_KEY,
+  VISUA_AI_TOPIC_KEY,
+  VISUA_AI_USER_KEY,
+  type VisuaAiUser,
+} from '@/lib/auth';
 import { listDue } from '@/lib/quizDeck';
 
 const WARM_CHALK_DUST: [number, number, number][] = [
@@ -31,6 +37,8 @@ export default function WelcomePage() {
   const router = useRouter();
   const [user, setUser] = useState<VisuaAiUser | null>(null);
   const [dueCount, setDueCount] = useState(0);
+  const [threeDMode, setThreeDMode] = useState(false);
+  const [quickConcept, setQuickConcept] = useState('');
 
   useEffect(() => {
     try {
@@ -60,6 +68,26 @@ export default function WelcomePage() {
       // ignore
     }
     router.push(`/chat?subject=${subject}`);
+  };
+
+  const onQuickSubmit = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const trimmed = quickConcept.trim();
+    if (!trimmed) return;
+    const topic = trimmed.length > 56 ? `${trimmed.slice(0, 54)}…` : trimmed;
+    try {
+      localStorage.setItem(VISUA_AI_CONCEPT_KEY, trimmed);
+      localStorage.setItem(VISUA_AI_TOPIC_KEY, topic);
+    } catch {
+      // ignore storage errors
+    }
+    // Route based on the 3D toggle — this is the hand-off to /canvas vs
+    // /canvas-3d. We URL-encode the concept so it survives the query string.
+    if (threeDMode) {
+      router.push(`/canvas-3d?c=${encodeURIComponent(trimmed)}`);
+    } else {
+      router.push('/canvas');
+    }
   };
 
   const signOut = () => {
@@ -244,6 +272,133 @@ export default function WelcomePage() {
           </button>
           <span className="welcome-latex-hint">Have an equation from a textbook? Visualize it directly.</span>
         </motion.div>
+
+        <motion.section
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.55, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+          style={{
+            marginTop: '2.5rem',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '0.75rem',
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.75rem',
+              flexWrap: 'wrap',
+              justifyContent: 'center',
+            }}
+          >
+            <span
+              style={{
+                fontFamily: "'Inter', sans-serif",
+                fontSize: 12,
+                letterSpacing: '0.16em',
+                textTransform: 'uppercase',
+                color: 'rgba(245,240,232,0.45)',
+              }}
+            >
+              Quick launch
+            </span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={threeDMode}
+              aria-label="Toggle 3D mode"
+              onClick={() => setThreeDMode((v) => !v)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '4px 10px',
+                borderRadius: 999,
+                border: `1px solid ${
+                  threeDMode ? 'rgba(127,255,239,0.55)' : 'rgba(245,240,232,0.25)'
+                }`,
+                background: threeDMode ? 'rgba(127,255,239,0.12)' : 'rgba(245,240,232,0.04)',
+                color: threeDMode ? '#7FFFEF' : 'rgba(245,240,232,0.65)',
+                fontFamily: "'Inter', sans-serif",
+                fontSize: 12,
+                letterSpacing: '0.1em',
+                textTransform: 'uppercase',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+              }}
+            >
+              <span
+                aria-hidden
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
+                  background: threeDMode ? '#7FFFEF' : 'rgba(245,240,232,0.3)',
+                  boxShadow: threeDMode ? '0 0 8px rgba(127,255,239,0.7)' : 'none',
+                }}
+              />
+              3D mode {threeDMode ? 'on' : 'off'}
+            </button>
+          </div>
+
+          <form
+            onSubmit={onQuickSubmit}
+            style={{
+              display: 'flex',
+              gap: '0.5rem',
+              width: '100%',
+              maxWidth: 520,
+              flexWrap: 'wrap',
+              justifyContent: 'center',
+            }}
+          >
+            <input
+              type="text"
+              value={quickConcept}
+              onChange={(e) => setQuickConcept(e.target.value)}
+              placeholder={
+                threeDMode
+                  ? 'e.g. cross product, paraboloid, plane through 3 points'
+                  : 'e.g. unit circle, derivatives, projectile motion'
+              }
+              aria-label="Concept input"
+              style={{
+                flex: '1 1 280px',
+                minWidth: 0,
+                padding: '10px 14px',
+                borderRadius: 10,
+                border: '1px solid rgba(245,240,232,0.2)',
+                background: 'rgba(245,240,232,0.04)',
+                color: '#F5F0E8',
+                fontFamily: "'Inter', sans-serif",
+                fontSize: 14,
+                outline: 'none',
+              }}
+            />
+            <button
+              type="submit"
+              disabled={!quickConcept.trim()}
+              style={{
+                padding: '10px 18px',
+                borderRadius: 10,
+                border: '1px solid rgba(245,240,232,0.28)',
+                background: quickConcept.trim()
+                  ? 'rgba(245,240,232,0.12)'
+                  : 'rgba(245,240,232,0.05)',
+                color: quickConcept.trim() ? '#F5F0E8' : 'rgba(245,240,232,0.4)',
+                fontFamily: "'Inter', sans-serif",
+                fontSize: 13,
+                letterSpacing: '0.04em',
+                cursor: quickConcept.trim() ? 'pointer' : 'not-allowed',
+              }}
+            >
+              {threeDMode ? 'Open 3D board →' : 'Start lesson →'}
+            </button>
+          </form>
+        </motion.section>
 
         <motion.div
           className="welcome-foot-row"
