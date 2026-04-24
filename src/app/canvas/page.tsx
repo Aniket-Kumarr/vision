@@ -699,6 +699,13 @@ export default function CanvasPage() {
   const [retryEnabled, setRetryEnabled] = useState(true);
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Per-step bitmap snapshots captured BEFORE each step animates. Indexed by
+  // step index: stepSnapshotsRef.current[i] = canvas state containing steps
+  // 0..i-1 (i.e. what the board looks like right before step i begins). Back
+  // restores the snapshot for the destination step, which instantly erases
+  // the most recent step without replaying any animations or re-fetching.
+  const stepSnapshotsRef = useRef<Map<number, ImageData>>(new Map());
+
   // Hydrate persisted preferences from localStorage after mount (SSR-safe).
   useEffect(() => {
     try {
@@ -1015,6 +1022,15 @@ export default function CanvasPage() {
       if (stepIndex >= bp.steps.length) return;
       const step = bp.steps[stepIndex];
 
+      // Cache the canvas state BEFORE this step draws so Back can restore it
+      // later without re-animating or re-fetching. We only capture the first
+      // time we reach a given step; re-entering from Back/Next must not
+      // overwrite the pristine "state before step i" snapshot.
+      if (!stepSnapshotsRef.current.has(stepIndex)) {
+        const snap = canvasRef.current?.saveState() ?? null;
+        if (snap) stepSnapshotsRef.current.set(stepIndex, snap);
+      }
+
       setIsAnimating(true);
       setCurrentNarration('');
 
@@ -1039,6 +1055,10 @@ export default function CanvasPage() {
     setSocraticState(null);
     pendingNextStepRef.current = null;
     canvasRef.current?.reset();
+    // Starting over from scratch invalidates every cached snapshot — the
+    // canvas is blank now, so the "before step i" snapshots we captured on
+    // the previous playthrough no longer match reality.
+    stepSnapshotsRef.current.clear();
     setCurrentStepIndex(0);
     setCurrentNarration('');
     setIsAnimating(false);
