@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { loadDesmos, type DesmosCalculator } from '@/lib/desmos';
+import { loadDesmos, applyDesmosGuardrails, type DesmosCalculator } from '@/lib/desmos';
 
 interface DesmosPanelProps {
   expressions: string[];
@@ -14,6 +14,10 @@ export default function DesmosPanel({ expressions, open, onClose }: DesmosPanelP
   const calcRef = useRef<DesmosCalculator | null>(null);
   const [status, setStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [errorMsg, setErrorMsg] = useState('');
+  // Final gate — regardless of where expressions came from (caller, cache,
+  // test fixture), anything Desmos would parse-reject or render with unbound
+  // variables is stripped here so the panel never shows warning triangles.
+  const guarded = applyDesmosGuardrails(expressions);
 
   useEffect(() => {
     if (!open) return;
@@ -34,7 +38,7 @@ export default function DesmosPanel({ expressions, open, onClose }: DesmosPanelP
           lockViewport: false,
         });
         calcRef.current = calc;
-        expressions.forEach((latex, i) => {
+        guarded.forEach((latex, i) => {
           try {
             calc.setExpression({ id: `e${i}`, latex });
           } catch {
@@ -60,6 +64,10 @@ export default function DesmosPanel({ expressions, open, onClose }: DesmosPanelP
         calcRef.current = null;
       }
     };
+    // The dep array intentionally uses `expressions` (raw input) — re-running
+    // when the caller hands over a new list. `guarded` is recomputed from it
+    // in the same render, so it stays in sync without adding a dep.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, expressions]);
 
   if (!open) return null;
@@ -95,7 +103,7 @@ export default function DesmosPanel({ expressions, open, onClose }: DesmosPanelP
               letterSpacing: '0.02em',
             }}
           >
-            Play with it — {expressions.length} expression{expressions.length === 1 ? '' : 's'}
+            Play with it — {guarded.length} expression{guarded.length === 1 ? '' : 's'}
           </div>
           <button
             onClick={onClose}

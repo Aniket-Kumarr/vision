@@ -113,17 +113,25 @@ export function extractExpressionsFromBlueprint(
   bp: Blueprint | null,
   topicHint?: string,
 ): string[] {
-  if (!bp) return topicHint ? seedsForTopic(topicHint) : [];
-  const found = new Set<string>();
+  // Every return path funnels through applyDesmosGuardrails so the panel
+  // NEVER receives expressions that violate Desmos's parser or leave
+  // variables unbound. See applyDesmosGuardrails below for the full ruleset.
 
-  // 0. Claude emitted pre-cleaned Desmos expressions — these have already
-  //    been server-validated against known-unsupported LaTeX (see
-  //    isDesmosCompatibleLatex in the generate route), so use them
-  //    exclusively when present to avoid noisy regex hits on narration.
-  if (bp.desmosExpressions && bp.desmosExpressions.length > 0) {
-    for (const s of bp.desmosExpressions) found.add(s);
-    return Array.from(found).slice(0, 6);
+  if (!bp) {
+    return applyDesmosGuardrails(topicHint ? seedsForTopic(topicHint) : []);
   }
+
+  // 0. Claude emitted pre-cleaned Desmos expressions. These have already
+  //    passed the server-side version of the same guardrail, but we re-run
+  //    client-side defence in depth — a dev running the older server build
+  //    or a fixture/cached blueprint might still carry noisy entries.
+  if (bp.desmosExpressions && bp.desmosExpressions.length > 0) {
+    const guarded = applyDesmosGuardrails(bp.desmosExpressions);
+    if (guarded.length > 0) return guarded.slice(0, 6);
+    // If Claude's emissions don't pass the guard, fall through to mining.
+  }
+
+  const found = new Set<string>();
 
   // 1. Topic-based seeds — broadest coverage, near-zero false positives.
   for (const s of seedsForTopic(topicHint || bp.title || '')) found.add(s);
@@ -158,7 +166,7 @@ export function extractExpressionsFromBlueprint(
     }
   }
 
-  return Array.from(found).slice(0, 6);
+  return applyDesmosGuardrails(Array.from(found)).slice(0, 6);
 }
 
 /**
@@ -201,4 +209,87 @@ function sanitizeToLatex(input: string): string {
   // Reject anything with stray characters that will just render as an error.
   if (/[{}\\]/.test(s) === false && /[=+\-*/^]/.test(s) === false) return '';
   return s;
+}
+
+// ---------------------------------------------------------------------------
+// Shared guardrails — "Play with it" panel runs every expression it is about
+// to send into Desmos through these checks, no matter where the expression
+// came from (Claude's desmosExpressions, regex-mined from narration, or a
+// TOPIC_SEEDS fallback). Mirrors the server-side validator in the generate
+// route but lives client-side so the panel itself is the final gate.
+// ---------------------------------------------------------------------------
+
+/** Desmos axis variables that don't need a numeric binding. */
+const DESMOS_FREE_AXES = new Set(['x', 'y', 't', 'r', '\\theta']);
+
+/**
+ * Reject strings Desmos's LaTeX parser will silently refuse. Same ruleset as
+ * the server validator so behavior is symmetric.
+ */
+export function isDesmosCompatibleLatex(s: string): boolean {
+  if (!s || s.length > 200) return false;
+  if (/\\text\s*\{/.test(s)) return false;
+  if (/\\begin\s*\{/.test(s) || /\\end\s*\{/.test(s)) return false;
+  if (/[∑∫√π≤≥≠÷×·∞∂∇]/.test(s)) return false;
+  const hasRelation = /[=<>]|\\leq\b|\\geq\b/.test(s);
+  const looksLikePoint = /^\s*\(.+,.+\)\s*$/.test(s);
+  const looksLikeList = /^\s*\[.+\]\s*$/.test(s);
+  if (!hasRelation && !looksLikePoint && !looksLikeList) return false;
+  return true;
+}
+
+function extractIdentifiers(latex: string): Set<string> {
+  const ids = new Set<string>();
+  let stripped = latex;
+  // Subscripted: T_{total}, v_{0}, etc.
+  const subRe = /([A-Za-z]|\\[a-zA-Z]+)_\{([^}]+)\}/g;
+  let m: RegExpExecArray | null;
+  while ((m = subRe.exec(latex)) !== null) ids.add(`${m[1]}_{${m[2]}}`);
+  stripped = stripped.replace(subRe, '');
+  // Greek.
+  const greekRe = /\\(alpha|beta|gamma|delta|epsilon|zeta|eta|theta|iota|kappa|lambda|mu|nu|xi|pi|rho|sigma|tau|upsilon|phi|chi|psi|omega|Gamma|Delta|Theta|Lambda|Xi|Pi|Sigma|Upsilon|Phi|Psi|Omega)\b/g;
+  while ((m = greekRe.exec(stripped)) !== null) ids.add(`\\${m[1]}`);
+  stripped = stripped.replace(greekRe, '');
+  // LaTeX command names (functions): \sin, \cos, \frac, \sqrt, \ln, \log.
+  stripped = stripped.replace(/\\[a-zA-Z]+/g, '');
+  // Remaining single letters.
+  const letterRe = /[A-Za-z]/g;
+  while ((m = letterRe.exec(stripped)) !== null) ids.add(m[0]);
+  return ids;
+}
+
+/**
+ * Run the final array of expressions through the same "every free variable
+ * is bound" check the server uses for Claude's desmosExpressions. Returns a
+ * filtered array — the whole batch is dropped if any variable is unbound,
+ * because a partial set of expressions with orange triangles is worse than
+ * an empty panel.
+ */
+export function applyDesmosGuardrails(exprs: string[]): string[] {
+  // 1. Per-entry syntax check.
+  const perEntryOk = exprs.filter((e) => isDesmosCompatibleLatex(e));
+  if (perEntryOk.length === 0) return [];
+
+  // 2. Collect bindings: entries of the form `identifier = <numeric literal>`.
+  const bindings = new Set<string>();
+  const bindingRe = /^\s*(\\?[A-Za-z]+(?:_\{[^}]+\})?)\s*=\s*(-?\d|\\frac|\\pi|\\sqrt)/;
+  for (const e of perEntryOk) {
+    const m = bindingRe.exec(e);
+    if (m) bindings.add(m[1]);
+  }
+
+  // 3. Every identifier used must be a free axis, a bound variable, or a
+  //    function-definition LHS (e.g. `f(x)=...`).
+  for (const e of perEntryOk) {
+    for (const id of extractIdentifiers(e)) {
+      if (DESMOS_FREE_AXES.has(id)) continue;
+      if (bindings.has(id)) continue;
+      const esc = id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const isFunctionName = new RegExp(`\\b${esc}\\s*\\(`).test(e);
+      if (isFunctionName) continue;
+      // Unbound identifier somewhere — scrap the whole batch.
+      return [];
+    }
+  }
+  return perEntryOk;
 }
