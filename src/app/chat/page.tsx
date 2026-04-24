@@ -325,6 +325,11 @@ function ChatPageInner() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [uploadPreview, setUploadPreview] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  // The picked File is *staged*, not uploaded, when the user attaches an image.
+  // Upload fires on submit so the user can type a hint into the concept input
+  // after picking the image. Without this two-phase flow, the upload would
+  // fire at pick-time and any later typing would never reach the API.
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [isDragActive, setIsDragActive] = useState(false);
   // Track nested dragenter/dragleave events so overlay doesn't flicker.
@@ -474,12 +479,12 @@ function ChatPageInner() {
   };
 
   /**
-   * Upload an image, send it to /api/generate-from-image, then hand the
-   * returned blueprint off to /canvas using the same localStorage protocol the
-   * typed-concept path uses (set replay so /canvas doesn't re-call /api).
+   * Stage a picked image: validate it, show the thumbnail, and remember the
+   * File for later upload. Does NOT send to /api — that waits for submit so
+   * the user can keep typing a hint in the concept input after picking.
    */
-  const uploadImage = useCallback(
-    async (file: File) => {
+  const stageImage = useCallback(
+    (file: File) => {
       if (isTransitioning || isUploading) return;
       const validation = describeImageValidation(file);
       if (validation) {
@@ -487,11 +492,23 @@ function ChatPageInner() {
         return;
       }
       setUploadError(null);
-
-      // Show a thumbnail in the thread while we wait.
       if (uploadPreview) URL.revokeObjectURL(uploadPreview);
       const previewUrl = URL.createObjectURL(file);
       setUploadPreview(previewUrl);
+      setPendingFile(file);
+    },
+    [isTransitioning, isUploading, uploadPreview],
+  );
+
+  /**
+   * Upload the currently-staged image plus the current concept as a hint,
+   * then hand the returned blueprint off to /canvas using the same
+   * localStorage protocol the typed-concept path uses.
+   */
+  const uploadImage = useCallback(
+    async (file: File) => {
+      if (isTransitioning || isUploading) return;
+      setUploadError(null);
       setIsUploading(true);
 
       try {
@@ -525,33 +542,27 @@ function ChatPageInner() {
         }
 
         const topic = (data.blueprint.title || 'Image lesson').slice(0, 120);
-        // Persist a minimal concept string for downstream screens (history,
-        // follow-up questions) that read it from localStorage.
         const storedConcept = hint
           ? `Image upload — ${hint}`
           : `Image upload — ${topic}`;
-        // Hand off exactly like the typed-concept path: stash the replay
-        // so /canvas renders without hitting /api/generate again. The stash
-        // is keyed by concept so /canvas knows it belongs to this lesson.
         setReplay(storedConcept, data.blueprint);
         startLesson(topic, storedConcept);
       } catch (err) {
         const message = err instanceof Error && err.message ? err.message : 'Upload failed.';
         setUploadError(message);
         setIsUploading(false);
-        // Leave the thumbnail visible so the user sees which upload failed.
       }
     },
     // startLesson is stable within the render (closure over router) — no need to memoise.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [concept, isTransitioning, isUploading, subject, uploadPreview],
+    [concept, isTransitioning, isUploading, subject],
   );
 
   const onFileInputChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     // Reset the input so re-selecting the same file still fires change.
     e.target.value = '';
-    if (file) void uploadImage(file);
+    if (file) stageImage(file);
   };
 
   const onPickImage = () => {
@@ -563,6 +574,7 @@ function ChatPageInner() {
   const clearUpload = () => {
     if (uploadPreview) URL.revokeObjectURL(uploadPreview);
     setUploadPreview(null);
+    setPendingFile(null);
     setUploadError(null);
   };
 
@@ -595,11 +607,17 @@ function ChatPageInner() {
     dragCounterRef.current = 0;
     setIsDragActive(false);
     const file = e.dataTransfer.files?.[0];
-    if (file) void uploadImage(file);
+    if (file) stageImage(file);
   };
 
   const onSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    // Image path: if the user staged a file, send it now together with
+    // whatever they typed as a hint (uploadImage reads `concept` at call time).
+    if (pendingFile) {
+      void uploadImage(pendingFile);
+      return;
+    }
     const raw = concept.trim();
     if (!raw) return;
     const scope = detectSubjectScope(raw, subject);
@@ -998,7 +1016,11 @@ function ChatPageInner() {
                 type="text"
                 value={concept}
                 onChange={(e) => setConcept(e.target.value)}
-                disabled={isTransitioning || isUploading}
+                // Only disabled during the post-submit route transition —
+                // stays typable while an image is uploading so the user can
+                // edit their hint if they change their mind before the API
+                // returns, and always typable while an image is merely staged.
+                disabled={isTransitioning}
                 placeholder={
                   subject === 'physics'
                     ? 'e.g. Why does a projectile travel in a parabola?'
