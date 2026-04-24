@@ -262,6 +262,12 @@ export default function CanvasPage() {
 
   const restartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const [isRetrying, setIsRetrying] = useState(false);
+  const [retryError, setRetryError] = useState<string | null>(null);
+  const [eraserProgress, setEraserProgress] = useState(0); // 0-1 for animation
+  const [retryEnabled, setRetryEnabled] = useState(true);
+  const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // Hydrate persisted voice preferences from localStorage after mount (SSR-safe).
   useEffect(() => {
     try {
@@ -657,6 +663,144 @@ export default function CanvasPage() {
     playStep(prevIdx, blueprint);
   }, [blueprint, isAnimating, currentStepIndex, playStep]);
 
+  const handleEraseAndRetry = useCallback(async () => {
+    if (!blueprint || !concept || isRetrying || !retryEnabled) return;
+
+    setIsRetrying(true);
+    setRetryError(null);
+    setRetryEnabled(false);
+
+    // Start eraser animation
+    const animDuration = 700;
+    const startTime = Date.now();
+
+    const animateEraser = () => {
+      const elapsed = Date.now() - startTime;
+      const progress = Math.min(elapsed / animDuration, 1);
+      setEraserProgress(progress);
+
+      if (progress < 1) {
+        requestAnimationFrame(animateEraser);
+      } else {
+        // At ~50% mark, clear the canvas; at 100%, fade out
+        setEraserProgress(0);
+
+        // Fetch new blueprint with alternative hint
+        const activeSubject = (() => {
+          try {
+            const s = localStorage.getItem(VISUA_AI_SUBJECT_KEY);
+            return s === 'math' || s === 'physics' ? s : 'math';
+          } catch {
+            return 'math';
+          }
+        })();
+
+        const controller = new AbortController();
+        const requestTimeout = setTimeout(() => controller.abort(), GENERATE_TIMEOUT_MS);
+
+        fetch('/api/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            concept,
+            subject: activeSubject,
+            alternativeHint:
+              'Try a fundamentally different approach than before — if the previous was geometric, try algebraic; if visual, try storytelling-first; avoid repeating the same scaffolding or palette.',
+          }),
+          signal: controller.signal,
+        })
+          .then(async (r) => {
+            if (!r.ok) {
+              const text = await r.text();
+              let msg = `Request failed (${r.status})`;
+              try {
+                const j = JSON.parse(text) as { error?: string };
+                if (typeof j?.error === 'string' && j.error.trim()) msg = j.error.trim();
+              } catch {
+                if (text.trim()) msg = text.trim().slice(0, 240);
+              }
+              throw new Error(msg);
+            }
+
+            const reader = r.body?.getReader();
+            if (!reader) throw new Error('No response body');
+
+            const decoder = new TextDecoder();
+            let accumulated = '';
+
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              accumulated += decoder.decode(value, { stream: true });
+            }
+            accumulated += decoder.decode();
+
+            const cleaned = accumulated
+              .replace(/^```json\s*/i, '')
+              .replace(/^```\s*/i, '')
+              .replace(/```\s*$/i, '')
+              .trim();
+
+            let data: unknown;
+            try {
+              data = JSON.parse(cleaned);
+            } catch {
+              throw new Error('Could not read the lesson from the server. Please try again.');
+            }
+
+            if (
+              data !== null &&
+              typeof data === 'object' &&
+              'blueprint' in (data as Record<string, unknown>)
+            ) {
+              return data as { blueprint: Blueprint; error?: string };
+            }
+
+            return { blueprint: data as Blueprint };
+          })
+          .then((data) => {
+            if (!data) return;
+            if ('error' in data && data.error) throw new Error(data.error as string);
+            const bp = data.blueprint as Blueprint;
+            if (!bp || !Array.isArray(bp.steps) || bp.steps.length === 0) {
+              throw new Error('Received an empty blueprint. Please try again.');
+            }
+
+            // Clear canvas and set new blueprint
+            canvasRef.current?.reset();
+            setBlueprint(bp);
+            setCurrentStepIndex(0);
+            setCurrentNarration('');
+            setIsAnimating(false);
+
+            // Play from step 1
+            playStep(0, bp);
+
+            // Cooldown: disable retry button for 3s
+            if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
+            retryTimeoutRef.current = setTimeout(() => {
+              setRetryEnabled(true);
+              retryTimeoutRef.current = null;
+            }, 3000);
+          })
+          .catch((err) => {
+            if (err.name === 'AbortError') {
+              setRetryError('Generation timed out. Please try again.');
+            } else {
+              console.error('[Visua AI] erase-and-retry failed:', err);
+              setRetryError(err.message || 'Failed to regenerate. Try again.');
+            }
+          })
+          .finally(() => {
+            clearTimeout(requestTimeout);
+            setIsRetrying(false);
+          });
+      }
+    };
+
+    requestAnimationFrame(animateEraser);
+  }, [blueprint, concept, isRetrying, retryEnabled, playStep]);
+
   const [isFollowUpPending, setIsFollowUpPending] = useState(false);
   const [followUpError, setFollowUpError] = useState<string | null>(null);
 
@@ -735,6 +879,7 @@ export default function CanvasPage() {
   useEffect(() => {
     return () => {
       if (restartTimerRef.current !== null) clearTimeout(restartTimerRef.current);
+      if (retryTimeoutRef.current !== null) clearTimeout(retryTimeoutRef.current);
     };
   }, []);
 
@@ -872,9 +1017,39 @@ export default function CanvasPage() {
                 width: '100%',
                 maxHeight: '100%',
                 maxWidth: `calc((100vh - 172px) * ${CANVAS_W} / ${CANVAS_H})`,
+                position: 'relative',
               }}
             >
               <ChalkCanvas ref={canvasRef} width={CANVAS_W} height={CANVAS_H} />
+
+              {/* Eraser animation overlay */}
+              {eraserProgress > 0 && eraserProgress <= 1 && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
+                    pointerEvents: 'none',
+                    overflow: 'hidden',
+                  }}
+                >
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: `${eraserProgress * 100}%`,
+                      width: '120px',
+                      height: '100%',
+                      background: 'rgba(255, 255, 255, 0.3)',
+                      boxShadow: '0 0 40px rgba(255, 255, 255, 0.4)',
+                      opacity: eraserProgress < 0.5 ? 1 : Math.max(0, 1 - (eraserProgress - 0.5) * 2),
+                      transition: 'none',
+                    }}
+                  />
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1059,6 +1234,10 @@ export default function CanvasPage() {
           onAskFollowUp={handleAskFollowUp}
           isFollowUpPending={isFollowUpPending}
           followUpError={followUpError}
+          onEraseAndRetry={handleEraseAndRetry}
+          isRetrying={isRetrying}
+          retryError={retryError}
+          retryEnabled={retryEnabled}
         />
       )}
 

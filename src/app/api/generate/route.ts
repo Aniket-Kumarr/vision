@@ -166,6 +166,18 @@ export function sanitizeConcept(raw: string): string | null {
   return trimmed.replace(/[\x00-\x1F\x7F]/g, '');
 }
 
+/**
+ * Sanitise an optional alternative hint hint for regeneration.
+ * Max 500 chars; strips control characters.
+ */
+function sanitizeHint(raw: unknown): string | null {
+  if (!raw) return null;
+  if (typeof raw !== 'string') return null;
+  const trimmed = raw.trim();
+  if (trimmed.length === 0 || trimmed.length > 500) return null;
+  return trimmed.replace(/[\x00-\x1F\x7F]/g, '');
+}
+
 function normalizeConceptKey(concept: string): string {
   return concept.toLowerCase().trim();
 }
@@ -295,13 +307,17 @@ async function generateWithClaude(
   subject: Subject,
   level: DifficultyLevel = 'college',
   persona: Persona = 'default',
+  alternativeHint?: string,
 ): Promise<Blueprint> {
   let lastErr: unknown = null;
   const suffix = PERSONA_SUFFIX[persona];
   const difficultyPrompt = getDifficultyLevelSuffix(level);
+  const baseContent = alternativeHint
+    ? `Create a visual chalk explanation (${subject} subject) for: "${concept}". ${alternativeHint}`
+    : `Create a visual chalk explanation (${subject} subject) for: "${concept}"`;
   const userContent = suffix
-    ? `Create a visual chalk explanation (${subject} subject) for: "${concept}"\n\n${difficultyPrompt}\n\n${suffix}`
-    : `Create a visual chalk explanation (${subject} subject) for: "${concept}"\n\n${difficultyPrompt}`;
+    ? `${baseContent}\n\n${difficultyPrompt}\n\n${suffix}`
+    : `${baseContent}\n\n${difficultyPrompt}`;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       const response = await client.messages.create({
@@ -381,11 +397,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ blueprint: onlyFixture });
     }
 
+    const alternativeHintEarly = sanitizeHint(body?.alternativeHint);
     // Check subject-scoped fixtures first (avoids API call for well-known concepts).
     // Physics has no fixtures — always go to the API for physics.
-    // When a non-default persona is requested we skip fixtures so the narration
-    // is actually generated in the requested voice.
-    if (subject !== 'physics' && persona === 'default') {
+    // When a non-default persona is requested or alternativeHint present,
+    // skip fixtures so the narration is actually regenerated.
+    if (subject !== 'physics' && persona === 'default' && !alternativeHintEarly) {
       const fixture = findFixtureForSubject(concept, subject);
       if (fixture) {
         return NextResponse.json({ blueprint: fixture });
@@ -404,7 +421,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const blueprint = await generateWithClaude(concept, subject, level, persona);
+    const blueprint = await generateWithClaude(concept, subject, level, persona, alternativeHintEarly ?? undefined);
     return NextResponse.json({ blueprint });
   } catch (err) {
     // SECURITY: never reflect raw Error.message to the client; it can contain

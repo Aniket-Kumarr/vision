@@ -17,6 +17,11 @@ interface StepControllerProps {
   onAskFollowUp?: (question: string) => void;
   isFollowUpPending?: boolean;
   followUpError?: string | null;
+  /** Erase and retry callback */
+  onEraseAndRetry?: () => void;
+  isRetrying?: boolean;
+  retryError?: string | null;
+  retryEnabled?: boolean;
 }
 
 export default function StepController({
@@ -31,6 +36,10 @@ export default function StepController({
   onAskFollowUp,
   isFollowUpPending = false,
   followUpError = null,
+  onEraseAndRetry,
+  isRetrying = false,
+  retryError = null,
+  retryEnabled = true,
 }: StepControllerProps) {
   const [followUp, setFollowUp] = useState('');
   const followUpDisabled = isAnimating || isFollowUpPending;
@@ -194,6 +203,24 @@ export default function StepController({
               </button>
             )}
 
+            {/* Erase and Retry button */}
+            {onEraseAndRetry && (
+              <button
+                onClick={onEraseAndRetry}
+                disabled={isRetrying || !retryEnabled || isAnimating || isTyping}
+                aria-label="Erase and regenerate with a different approach"
+                aria-disabled={isRetrying || !retryEnabled || isAnimating || isTyping}
+                className={`px-5 py-2.5 rounded-lg text-sm font-['Inter',sans-serif] tracking-[0.12em] uppercase transition-all duration-300 border ${
+                  retryEnabled && !isRetrying && !isAnimating && !isTyping
+                    ? 'cursor-pointer text-[rgba(245,240,232,0.7)] border-[rgba(245,240,232,0.25)] hover:border-[rgba(245,240,232,0.45)]'
+                    : 'opacity-30 cursor-not-allowed text-[rgba(245,240,232,0.4)] border-[rgba(245,240,232,0.1)]'
+                } bg-transparent`}
+                title={!retryEnabled ? 'Cooldown active (3s)' : 'Erase and regenerate with a different approach'}
+              >
+                {isRetrying ? 'Generating…' : 'Erase & Retry ↺'}
+              </button>
+            )}
+
             {/* Next / Start Over button */}
             <button
               onClick={onNext}
@@ -210,6 +237,13 @@ export default function StepController({
             </button>
           </div>
         </div>
+
+        {/* Retry error message */}
+        {retryError ? (
+          <p className="text-sm text-[rgba(255,200,200,0.9)] px-4 py-2 rounded" role="alert">
+            {retryError}
+          </p>
+        ) : null}
       </div>
     </div>
   );
