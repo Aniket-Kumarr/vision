@@ -31,6 +31,37 @@ const MATH_KEYWORDS: RegExp[] = [
   /\bcombinator/i,
 ];
 
+const MUSIC_KEYWORDS: RegExp[] = [
+  /\bcircle of fifths?\b/i,
+  /\bpentatonic\b/i,
+  /\bchord\b/i,
+  /\btriad\b/i,
+  /\binterval\b/i,
+  /\bsemitone\b/i,
+  /\bmajor scale\b/i,
+  /\bminor scale\b/i,
+  /\bkey signature\b/i,
+  /\btime signature\b/i,
+  /\benharmonic\b/i,
+  /\bmode(s)?\b/i,
+  /\boctave\b/i,
+  /\bnote (value|duration)\b/i,
+  /\bstaff notation\b/i,
+  /\bmelody\b/i,
+  /\bharmony\b/i,
+  /\bcounterpoint\b/i,
+  /\barpeggio\b/i,
+  /\bchord inversion\b/i,
+  /\bperfect fifth\b/i,
+  /\bmusic theory\b/i,
+  /\bdorian\b/i,
+  /\bphrygian\b/i,
+  /\blydian\b/i,
+  /\bmixolydian\b/i,
+  /\baeolian\b/i,
+  /\blocrian\b/i,
+];
+
 const PHYSICS_KEYWORDS: RegExp[] = [
   /\bfree[- ]?body\b/i,
   /\bprojectile\b/i,
@@ -61,7 +92,7 @@ const PHYSICS_KEYWORDS: RegExp[] = [
   /\blongitudinal wave/i,
 ];
 
-export type Subject = 'math' | 'physics' | 'chemistry' | 'biology';
+export type Subject = 'math' | 'physics' | 'chemistry' | 'biology' | 'music';
 
 export interface SubjectScopeResult {
   likelySubject: Subject | null;
@@ -119,8 +150,9 @@ export function detectSubjectScope(input: string, current: Subject): SubjectScop
   const isPhysics = PHYSICS_KEYWORDS.some((re) => re.test(text));
   const isChemistry = CHEMISTRY_KEYWORDS.some((re) => re.test(text));
   const isBiology = BIOLOGY_KEYWORDS.some((re) => re.test(text));
+  const isMusic = MUSIC_KEYWORDS.some((re) => re.test(text));
 
-  const matches = [isMath, isPhysics, isChemistry, isBiology].filter(Boolean).length;
+  const matches = [isMath, isPhysics, isChemistry, isBiology, isMusic].filter(Boolean).length;
   // Ambiguous (matches multiple) or none — don't flag.
   if (matches !== 1) return { likelySubject: null, mismatch: false };
 
@@ -130,6 +162,8 @@ export function detectSubjectScope(input: string, current: Subject): SubjectScop
       ? 'physics'
       : isChemistry
         ? 'chemistry'
-        : 'biology';
+        : isBiology
+          ? 'biology'
+          : 'music';
   return { likelySubject, mismatch: likelySubject !== current };
 }

@@ -3,6 +3,7 @@ export { CHEM_FIXTURES } from './chemFixtures';
 export { BIO_FIXTURES } from './bioFixtures';
 import { CHEM_FIXTURES } from './chemFixtures';
 import { BIO_FIXTURES } from './bioFixtures';
+import { CIRCLE_OF_FIFTHS, MAJOR_SCALE, CHORD_TRIAD } from './musicFixtures';
 
 export const PYTHAGOREAN_THEOREM: Blueprint = {
   title: 'Pythagorean Theorem',
@@ -494,8 +495,16 @@ export const MATH_FIXTURES: Record<string, Blueprint> = {
   'what is a derivative': WHAT_IS_A_DERIVATIVE,
 };
 
+export const MUSIC_FIXTURES: Record<string, Blueprint> = {
+  'circle of fifths': CIRCLE_OF_FIFTHS,
+  'major scale': MAJOR_SCALE,
+  'chord triad': CHORD_TRIAD,
+  'triad': CHORD_TRIAD,
+};
+
 export const FIXTURES: Record<string, Blueprint> = {
   ...MATH_FIXTURES,
   ...CHEM_FIXTURES,
   ...BIO_FIXTURES,
+  ...MUSIC_FIXTURES,
 };

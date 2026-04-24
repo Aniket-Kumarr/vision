@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
-import { FIXTURES, MATH_FIXTURES, CHEM_FIXTURES, BIO_FIXTURES } from '@/lib/fixtures';
+import { FIXTURES, MATH_FIXTURES, CHEM_FIXTURES, BIO_FIXTURES, MUSIC_FIXTURES } from '@/lib/fixtures';
 import { Blueprint, Domain, Strategy } from '@/lib/types';
 
 // ---------------------------------------------------------------------------
@@ -20,7 +20,7 @@ const client = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
-export type Subject = 'math' | 'physics' | 'chemistry' | 'biology';
+export type Subject = 'math' | 'physics' | 'chemistry' | 'biology' | 'music';
 
 const MATH_INTRO = `You are a mathematical visualization engine for an interactive chalkboard animation app. Your job is to take any math concept and break it down into a step-by-step visual explanation that draws on a black chalkboard with colorful chalk.`;
 
@@ -36,11 +36,29 @@ const BIOLOGY_INTRO = `You are a biology visualization engine for an interactive
 
 Use the drawing primitives (line, circle, arc, text, arrow, shade, etc.) to render process diagrams, labeled organelles, cycle arrows, membrane cross-sections, and population charts. Focus on the story: WHY the process works the way it does, what each step accomplishes biologically — not rote memorization.`;
 
+const MUSIC_INTRO = `You are a music theory visualization engine for an interactive chalkboard animation app. Your job is to take any music theory concept — intervals, scales, chords, modes, the circle of fifths, rhythm, staff notation — and break it down into a step-by-step VISUAL explanation drawn on a black chalkboard with colorful chalk.
+
+CRITICAL: This is a VISUAL medium — not audio. You draw diagrams, not play sounds. Use these drawing primitives:
+- Staff: 5 parallel horizontal lines drawn with the 'line' type, evenly spaced ~30px apart
+- Notes: small filled 'circle' (r≈10) placed on the correct line or space, plus a 'line' stem extending up or down
+- Time signature: 'text' type with stacked numbers at the staff start
+- Circle of fifths: 12 labeled 'point' primitives arranged around a 'circle' (cx≈400,cy≈300,r≈220)
+- Intervals: 'arc' spanning two notes + 'text' label for the interval name
+- Chords: stacked note circles on the same vertical position
+- Scales: note circles stepping upward left to right across the staff
+- Semitone number lines: a horizontal 'line' with 'point' and 'text' labels at each semitone position
+- Piano keyboard: 'rect' primitives for white keys, smaller filled 'rect' for black keys
+
+Use color purposefully: white for staff lines and base structures, yellow for key notes and formulas, green for results and answers, blue for secondary/supporting notes, orange for interval labels, cyan for scale degree numbers, red for tension notes or half-step markers.
+
+IMPORTANT: Only create music theory lessons. If the topic is not music theory, decline gracefully and suggest the correct subject.`;
+
 export function buildSystemPrompt(subject: Subject): string {
   let intro: string;
   if (subject === 'physics') intro = PHYSICS_INTRO;
   else if (subject === 'chemistry') intro = CHEMISTRY_INTRO;
   else if (subject === 'biology') intro = BIOLOGY_INTRO;
+  else if (subject === 'music') intro = MUSIC_INTRO;
   else intro = MATH_INTRO;
   return `${intro}
 
@@ -137,6 +155,7 @@ const SUBJECT_FIXTURE_BANKS: Record<Subject, Record<string, Blueprint>> = {
   physics: {},
   chemistry: CHEM_FIXTURES,
   biology: BIO_FIXTURES,
+  music: MUSIC_FIXTURES,
 };
 
 function findFixtureForSubject(concept: string, subject: Subject): Blueprint | null {
@@ -264,7 +283,9 @@ export async function POST(req: NextRequest) {
           ? 'chemistry'
           : subjectRaw === 'biology'
             ? 'biology'
-            : 'math';
+            : subjectRaw === 'music'
+              ? 'music'
+              : 'math';
 
     // Optional: force fixtures only (no API), useful for offline demos.
     // Set VISUA_AI_USE_FIXTURES_ONLY=1 in .env.local

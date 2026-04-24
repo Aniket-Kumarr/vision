@@ -39,9 +39,15 @@ import {
   displayBiologyTopicForUserConcept,
   biologyPromptForUserConcept,
 } from '@/lib/biologyPrompts';
+import {
+  MUSIC_SUGGESTION_CHIPS,
+  MUSIC_SUGGESTION_TO_PROMPT,
+  displayMusicTopicForUserConcept,
+  musicPromptForUserConcept,
+} from '@/lib/musicPrompts';
 import { detectSubjectScope } from '@/lib/subjectScope';
 
-type Subject = 'math' | 'physics' | 'chemistry' | 'biology';
+type Subject = 'math' | 'physics' | 'chemistry' | 'biology' | 'music';
 import {
   type LessonHistoryItem,
   clearLessons,
@@ -280,10 +286,10 @@ function ChatPageInner() {
 
   const subject: Subject = useMemo(() => {
     const q = searchParams.get('subject');
-    if (q === 'math' || q === 'physics' || q === 'chemistry' || q === 'biology') return q;
+    if (q === 'math' || q === 'physics' || q === 'chemistry' || q === 'biology' || q === 'music') return q;
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem(VISUA_AI_SUBJECT_KEY);
-      if (stored === 'math' || stored === 'physics' || stored === 'chemistry' || stored === 'biology') return stored as Subject;
+      if (stored === 'math' || stored === 'physics' || stored === 'chemistry' || stored === 'biology' || stored === 'music') return stored as Subject;
     }
     return 'math';
   }, [searchParams]);
@@ -303,7 +309,9 @@ function ChatPageInner() {
         ? CHEMISTRY_SUGGESTION_CHIPS
         : subject === 'biology'
           ? BIOLOGY_SUGGESTION_CHIPS
-          : SUGGESTION_CHIPS;
+          : subject === 'music'
+            ? MUSIC_SUGGESTION_CHIPS
+            : SUGGESTION_CHIPS;
   const promptMap: Record<string, string> =
     subject === 'physics'
       ? PHYSICS_SUGGESTION_TO_PROMPT
@@ -311,7 +319,9 @@ function ChatPageInner() {
         ? CHEMISTRY_SUGGESTION_TO_PROMPT
         : subject === 'biology'
           ? BIOLOGY_SUGGESTION_TO_PROMPT
-          : SUGGESTION_TO_PROMPT;
+          : subject === 'music'
+            ? MUSIC_SUGGESTION_TO_PROMPT
+            : SUGGESTION_TO_PROMPT;
   const genericPrompt =
     subject === 'physics'
       ? physicsPromptForUserConcept
@@ -319,7 +329,9 @@ function ChatPageInner() {
         ? chemistryPromptForUserConcept
         : subject === 'biology'
           ? biologyPromptForUserConcept
-          : promptForUserConcept;
+          : subject === 'music'
+            ? musicPromptForUserConcept
+            : promptForUserConcept;
   const displayTopic =
     subject === 'physics'
       ? displayPhysicsTopicForUserConcept
@@ -327,7 +339,9 @@ function ChatPageInner() {
         ? displayChemistryTopicForUserConcept
         : subject === 'biology'
           ? displayBiologyTopicForUserConcept
-          : displayTopicForUserConcept;
+          : subject === 'music'
+            ? displayMusicTopicForUserConcept
+            : displayTopicForUserConcept;
 
   const firstName = useMemo(() => {
     if (!user?.name) return 'there';
@@ -455,6 +469,7 @@ function ChatPageInner() {
         <ChatDoodles />
       )}
 
+
       <motion.header
         className="chat-session-nav"
         initial={{ opacity: 0, y: -8 }}
@@ -470,7 +485,9 @@ function ChatPageInner() {
                 ? 'Chemistry'
                 : subject === 'biology'
                   ? 'Biology'
-                  : 'Math'}
+                  : subject === 'music'
+                    ? 'Music'
+                    : 'Math'}
           </span>
         </div>
         <div className="chat-session-nav-right">
@@ -549,7 +566,9 @@ function ChatPageInner() {
                         ? "I'm ready when you are. Ask about any chemistry topic — orbital shapes, reaction mechanisms, titration curves, or something you're stuck on in class."
                         : subject === 'biology'
                           ? "I'm ready when you are. Ask about any biology topic — action potentials, the Krebs cycle, Punnett squares, or something you're stuck on in class."
-                          : "I'm ready when you are. Ask about any topic — unit circle, derivatives, area puzzles, or something you're stuck on in class."
+                          : subject === 'music'
+                            ? "I'm ready when you are. Ask about any music theory topic — circle of fifths, chord voicings, scales, modes, or something you're stuck on."
+                            : "I'm ready when you are. Ask about any topic — unit circle, derivatives, area puzzles, or something you're stuck on in class."
                   }
                   startDelayMs={650}
                   charMs={14}
@@ -576,7 +595,9 @@ function ChatPageInner() {
                         ? 'physics'
                         : scopeBanner.likelySubject === 'chemistry'
                           ? 'chemistry'
-                          : 'biology'}
+                          : scopeBanner.likelySubject === 'biology'
+                            ? 'biology'
+                            : 'music'}
                   </strong>{' '}
                   topic.
                 </p>
@@ -588,7 +609,9 @@ function ChatPageInner() {
                       ? 'Chemistry'
                       : subject === 'biology'
                         ? 'Biology'
-                        : 'Math'}{' '}
+                        : subject === 'music'
+                          ? 'Music'
+                          : 'Math'}{' '}
                   workspace. Want to switch?
                 </p>
               </div>
@@ -601,7 +624,9 @@ function ChatPageInner() {
                       ? 'Physics'
                       : scopeBanner.likelySubject === 'chemistry'
                         ? 'Chemistry'
-                        : 'Biology'}{' '}
+                        : scopeBanner.likelySubject === 'biology'
+                          ? 'Biology'
+                          : 'Music'}{' '}
                   →
                 </button>
                 <button type="button" className="scope-banner-secondary" onClick={continueAnyway}>
@@ -633,7 +658,9 @@ function ChatPageInner() {
                       ? 'e.g. How do sp3 orbitals create tetrahedral geometry?'
                       : subject === 'biology'
                         ? 'e.g. Walk me through the Krebs cycle'
-                        : 'e.g. Explain the unit circle intuitively'
+                        : subject === 'music'
+                          ? 'e.g. Explain the circle of fifths visually'
+                          : 'e.g. Explain the unit circle intuitively'
                 }
                 className="prompt-input"
                 aria-label="Concept input"

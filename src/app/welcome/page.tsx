@@ -31,7 +31,7 @@ const fadeUp = {
   }),
 };
 
-type Subject = 'math' | 'physics' | 'chemistry' | 'biology';
+type Subject = 'math' | 'physics' | 'chemistry' | 'biology' | 'music';
 
 export default function WelcomePage() {
   const router = useRouter();
@@ -305,10 +305,34 @@ export default function WelcomePage() {
               </span>
             </div>
           </motion.button>
+
+          <motion.button
+            type="button"
+            className="welcome-card welcome-card-music"
+            variants={fadeUp}
+            custom={4}
+            onClick={() => chooseSubject('music')}
+            aria-label="Enter the music theory workspace"
+          >
+            <div className="welcome-card-noise" aria-hidden />
+            <div className="welcome-card-inner">
+              <span className="welcome-card-kicker">Subject</span>
+              <h2 className="welcome-card-title">Music</h2>
+              <p className="welcome-card-tagline">
+                circle of fifths, chords, scales, modes
+              </p>
+              <p className="welcome-card-desc">
+                Staff notation, interval arcs, chord voicings, and the circle of fifths drawn step by
+                step. Theory made visual.
+              </p>
+              <span className="welcome-card-cta">
+                Start drawing <span aria-hidden>→</span>
+              </span>
+            </div>
+          </motion.button>
         </motion.div>
 
         <motion.div
-<<<<<<< HEAD
           className="welcome-latex-link"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
