@@ -41,6 +41,7 @@ export interface ChalkCanvasHandle {
   saveState: () => ImageData | null;
   /** Returns the raw HTMLCanvasElement for capture (e.g. captureStream / export). */
   getHTMLCanvas: () => HTMLCanvasElement | null;
+  restoreState: (snapshot: ImageData) => void;
 }
 
 interface ChalkCanvasProps {
@@ -222,6 +223,23 @@ const ChalkCanvas = forwardRef<ChalkCanvasHandle, ChalkCanvasProps>(
           return ctx.getImageData(0, 0, pw, ph);
         },
         getHTMLCanvas: () => canvasRef.current,
+        restoreState: (snapshot: ImageData) => {
+          const ctx = getCtx();
+          if (!ctx) return;
+          // Cancel any in-flight drawing before blitting the snapshot.
+          if (animRef.current) {
+            animRef.current.cancel();
+            animRef.current = null;
+          }
+          // putImageData ignores the current transform, so reset to identity
+          // for the blit then re-apply the DPR scale for subsequent draws.
+          const dpr = window.devicePixelRatio ?? 1;
+          const { pw, ph } = physicalSize();
+          ctx.setTransform(1, 0, 0, 1, 0, 0);
+          ctx.clearRect(0, 0, pw, ph);
+          ctx.putImageData(snapshot, 0, 0);
+          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        },
       }),
       [playDrawing, reset, getCtx, physicalSize]
     );
