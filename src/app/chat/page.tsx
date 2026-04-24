@@ -71,6 +71,7 @@ type Subject = 'math' | 'physics' | 'chemistry' | 'biology' | 'music' | 'cs';
 import {
   type LessonHistoryItem,
   clearLessons,
+  clearReplay,
   getLessons,
   removeLesson,
   setReplay,
@@ -457,6 +458,10 @@ function ChatPageInner() {
     const prompt = apiPrompt.trim();
     const topic = (topicLabel.trim() || displayTopic(prompt)).slice(0, 120);
     if (!prompt || isTransitioning) return;
+    // Any prior replay stash is for a different (or the same) lesson; drop it
+    // so a freshly-typed concept regenerates rather than picking up a stale
+    // cached blueprint.
+    clearReplay();
     localStorage.setItem(VISUA_AI_CONCEPT_KEY, prompt);
     localStorage.setItem(VISUA_AI_TOPIC_KEY, topic);
     localStorage.setItem('visua_ai_difficulty', difficultyLevel);
@@ -466,9 +471,23 @@ function ChatPageInner() {
 
   const replayLesson = (item: LessonHistoryItem) => {
     if (isTransitioning) return;
+    if (!item.blueprint) {
+      // Legacy history entry without a cached blueprint — fall back to a
+      // normal generate. Marked as non-replayable at the UI layer.
+      startLesson(item.topic, item.concept);
+      return;
+    }
     // Stash the cached blueprint so /canvas skips the Anthropic call.
-    setReplay(item.blueprint);
-    startLesson(item.topic, item.concept);
+    // NOTE: setReplay must run BEFORE startLesson — startLesson calls
+    // clearReplay() and would otherwise wipe our fresh stash.
+    const prompt = item.concept.trim();
+    const topic = (item.topic.trim() || displayTopic(prompt)).slice(0, 120);
+    if (!prompt || isTransitioning) return;
+    setReplay(prompt, item.blueprint);
+    localStorage.setItem(VISUA_AI_CONCEPT_KEY, prompt);
+    localStorage.setItem(VISUA_AI_TOPIC_KEY, topic);
+    setIsTransitioning(true);
+    window.setTimeout(() => router.push('/canvas'), 380);
   };
 
   /**
