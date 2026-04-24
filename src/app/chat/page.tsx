@@ -7,6 +7,7 @@ import { motion } from 'framer-motion';
 import ChalkParticles from '@/components/ChalkParticles';
 import PhysicsDoodles from '@/components/PhysicsDoodles';
 import SuggestionChips from '@/components/SuggestionChips';
+import VoiceInputButton from '@/components/VoiceInputButton';
 import {
   VISUA_AI_CONCEPT_KEY,
   VISUA_AI_SUBJECT_KEY,
@@ -544,19 +545,25 @@ function ChatPageInner() {
           ) : null}
 
           <form onSubmit={onSubmit} className="prompt-form">
-            <input
-              type="text"
-              value={concept}
-              onChange={(e) => setConcept(e.target.value)}
-              disabled={isTransitioning}
-              placeholder={
-                subject === 'physics'
-                  ? 'e.g. Why does a projectile travel in a parabola?'
-                  : 'e.g. Explain the unit circle intuitively'
-              }
-              className="prompt-input"
-              aria-label="Concept input"
-            />
+            <div className="prompt-form-input-wrapper">
+              <input
+                type="text"
+                value={concept}
+                onChange={(e) => setConcept(e.target.value)}
+                disabled={isTransitioning}
+                placeholder={
+                  subject === 'physics'
+                    ? 'e.g. Why does a projectile travel in a parabola?'
+                    : 'e.g. Explain the unit circle intuitively'
+                }
+                className="prompt-input"
+                aria-label="Concept input"
+              />
+              <VoiceInputButton
+                onTranscript={(text) => setConcept(text)}
+                disabled={isTransitioning}
+              />
+            </div>
             <motion.button
               type="submit"
               disabled={isTransitioning || !concept.trim()}
