@@ -122,6 +122,11 @@ export default function WelcomePage() {
   return (
     <main className="chat-session-page welcome-page">
       <ChalkParticles count={18} colors={WARM_CHALK_DUST} className="chat-ambient" />
+      {/* Mounted here, above every framer-motion wrapper, so position:fixed
+          anchors to the viewport. Nesting it inside <motion.*> elements
+          breaks fixed positioning because framer's transform creates a new
+          containing block. */}
+      <StreakBadge />
 
       <motion.header
         className="chat-session-nav"
@@ -165,7 +170,6 @@ export default function WelcomePage() {
           <Link href="/desmos-lab" className="ghost-btn" style={{ textDecoration: 'none' }}>
             Desmos Lab
           </Link>
-          <StreakBadge />
           {user.picture ? (
             <Image src={user.picture} alt="" width={32} height={32} className="avatar" />
           ) : null}

@@ -139,6 +139,29 @@ Critical rules:
 - For text: fontSize should be between 14 and 36
 - For axes: place them so content fits on screen (cx/cy is the origin, xRange/yRange is how far each direction)
 
+SPATIAL DISCIPLINE (non-negotiable — prevents the overlap-mess failure mode):
+Previous steps' drawings REMAIN on the canvas forever. Never re-draw a label, box, or
+axis that already exists. Never emit two pieces of text that occupy overlapping bounding
+boxes. Budget the 800×600 canvas BEFORE you start:
+
+- For 3+ step lessons, divide the canvas into non-overlapping zones and assign each
+  step its own zone. A reliable split for 4 steps is a 2×2 grid of ~400×300 quadrants
+  (top-left, top-right, bottom-left, bottom-right). For 6 steps use a 3-column × 2-row
+  grid of ~266×300 cells.
+- For lessons that build ONE central diagram incrementally (a triangle being dissected,
+  a unit circle being annotated), step 1 places the base in the center. Each later step
+  adds NEW primitives at NEW coordinates — arrows pointing at parts, labels in the
+  margin (not on top of existing text), color overlays via shade. Never redraw the
+  base shape.
+- Text labels must not cross each other's bounding boxes. Approximate a label's width
+  as \`fontSize * 0.6 * charCount\` and its height as \`fontSize * 1.2\`. Two text
+  primitives whose boxes would intersect must be moved apart OR only one emitted.
+- Title text belongs in the top 60 pixels (y ∈ [20, 60]) and is drawn ONCE in step 1.
+- Do NOT repeat an equation in multiple steps. If step 2 derives \`c^2 = a^2 + b^2\`,
+  step 3 can reference it but must not redraw it.
+- If a later step needs to "update" a value (e.g. slider moves from θ=30° to θ=60°),
+  emit the NEW value in a new location — never redraw on top of the old one.
+
 DESMOS LATEX RULES (for the desmosExpressions array — optional, up to 6 items):
 
 DEFAULT IS OMIT. Only emit \`desmosExpressions\` when the concept produces a literal picture

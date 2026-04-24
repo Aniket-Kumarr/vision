@@ -689,6 +689,11 @@ function ChatPageInner() {
       onDragLeave={onDragLeave}
       onDrop={onDrop}
     >
+      {/* Rendered at the root of <main>, above every <motion.*> wrapper, so
+          its position:fixed anchors to the viewport. Nested inside a
+          framer-motion element it would anchor to the animated transform. */}
+      <StreakBadge />
+
       {/* Drop-zone overlay — appears when the user drags an image over the page */}
       {isDragActive ? (
         <div className="chat-dropzone-overlay" aria-hidden>
@@ -763,7 +768,6 @@ function ChatPageInner() {
           <PersonaPicker value={persona} onChange={setPersona} compact />
         </div>
         <div className="chat-session-nav-right">
-          <StreakBadge />
           <button
             type="button"
             className="ghost-btn"

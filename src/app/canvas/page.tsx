@@ -16,6 +16,7 @@ import { encodeBlueprint } from '@/lib/shareLink';
 import { addCards } from '@/lib/quizDeck';
 import { useExport } from '@/hooks/useExport';
 import { useStepNarration } from '@/hooks/useStepNarration';
+import StreakBadge from '@/components/StreakBadge';
 
 const ChalkCanvas = dynamic(() => import('@/components/ChalkCanvas'), { ssr: false });
 const DesmosPanel = dynamic(() => import('@/components/DesmosPanel'), { ssr: false });
@@ -926,6 +927,9 @@ export default function CanvasPage() {
       className="relative w-screen h-screen overflow-hidden flex items-center justify-center"
       style={{ background: '#0a0a0a' }}
     >
+      {/* Bottom-left streak notification — floats on every page via position:fixed. */}
+      <StreakBadge />
+
       {/* Loading state */}
       {pageState === 'loading' && (
         <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-6 px-6">
