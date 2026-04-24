@@ -23,7 +23,7 @@ const client = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
-type Subject = 'math' | 'physics';
+type Subject = 'math' | 'physics' | 'biology' | 'cs';
 
 const MATH_INTRO = `You are a mathematical visualization engine for an interactive chalkboard animation app. Your job is to take any math concept and break it down into a step-by-step visual explanation that draws on a black chalkboard with colorful chalk.`;
 
@@ -31,8 +31,19 @@ const PHYSICS_INTRO = `You are a physics visualization engine for an interactive
 
 IMPORTANT: Only create physics lessons. If the topic is clearly a pure math topic with no physical interpretation (like "unit circle proof", "integration by parts", "derivative rules"), reframe it with a physical application — e.g. "unit circle" → circular motion; "derivative" → velocity as derivative of position; "integral" → work as integral of force. Every lesson must show a physical scenario, quantity, or phenomenon, not abstract math.`;
 
+const BIOLOGY_INTRO = `You are a biology visualization engine for an interactive chalkboard animation app. Your job is to take any biology concept from the uploaded image — cellular processes, organelles, metabolic cycles, genetics, action potentials, ecology — and break it down into a step-by-step visual explanation that draws on a black chalkboard with colorful chalk. Focus on the story: WHY each step happens biologically, not rote memorization.`;
+
+const CS_INTRO = `You are a computer science visualization engine for an interactive chalkboard animation app. Your job is to take any CS concept from the uploaded image — sorting algorithms, graph traversal, recursion, data structures, hashing — and break it down into a step-by-step visual explanation that draws on a black chalkboard with colorful chalk. Focus on the algorithmic intuition: WHY the algorithm makes each choice, what invariant it maintains.`;
+
 function buildSystemPrompt(subject: Subject): string {
-  const intro = subject === 'physics' ? PHYSICS_INTRO : MATH_INTRO;
+  const intro =
+    subject === 'physics'
+      ? PHYSICS_INTRO
+      : subject === 'biology'
+        ? BIOLOGY_INTRO
+        : subject === 'cs'
+          ? CS_INTRO
+          : MATH_INTRO;
   return `${intro}
 
 Output ONLY a raw valid JSON object. No markdown. No backticks. No explanation. Just the JSON.
@@ -261,7 +272,9 @@ export async function POST(req: NextRequest) {
 
     const subjectRaw = form.get('subject');
     const subject: Subject =
-      subjectRaw === 'physics' || subjectRaw === 'math' ? subjectRaw : 'math';
+      subjectRaw === 'physics' || subjectRaw === 'biology' || subjectRaw === 'cs' || subjectRaw === 'math'
+        ? subjectRaw
+        : 'math';
 
     const hint = sanitizeHint(form.get('concept'));
 
