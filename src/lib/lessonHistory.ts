@@ -4,6 +4,8 @@ export const HISTORY_KEY = 'visua_ai_history';
 export const REPLAY_KEY = 'visua_ai_replay_blueprint';
 
 const MAX_HISTORY = 50;
+/** Hard cap on serialized history size (~3.5 MB, leaves room under 5 MB origin quota). */
+const MAX_HISTORY_BYTES = 3_500_000;
 
 export type LessonSubject = 'math' | 'physics' | 'chemistry' | 'biology' | 'music' | 'cs';
 
@@ -64,7 +66,10 @@ export function getLessons(): LessonHistoryItem[] {
 /**
  * Add a lesson to history. Dedupes by `concept` so re-running the same topic
  * replaces the older entry with a fresh blueprint and current timestamp.
- * Caps the list at MAX_HISTORY (oldest evicted).
+ *
+ * Caps the list at `MAX_HISTORY` entries AND at `MAX_HISTORY_BYTES` serialized
+ * size (oldest evicted first) so blueprints — which can each be a few KB —
+ * never blow the ~5 MB localStorage quota per origin.
  */
 export function addLesson(item: Omit<LessonHistoryItem, 'id' | 'createdAt'>): void {
   if (typeof window === 'undefined') return;
@@ -75,8 +80,15 @@ export function addLesson(item: Omit<LessonHistoryItem, 'id' | 'createdAt'>): vo
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       createdAt: Date.now(),
     };
-    const updated = [next, ...existing].slice(0, MAX_HISTORY);
-    localStorage.setItem(HISTORY_KEY, JSON.stringify(updated));
+    let updated = [next, ...existing].slice(0, MAX_HISTORY);
+    // Evict oldest entries until the serialized payload fits the byte cap.
+    // Keep at least the new entry even if it is huge by itself.
+    let serialized = JSON.stringify(updated);
+    while (updated.length > 1 && serialized.length > MAX_HISTORY_BYTES) {
+      updated = updated.slice(0, -1);
+      serialized = JSON.stringify(updated);
+    }
+    localStorage.setItem(HISTORY_KEY, serialized);
   } catch {
     /* localStorage quota or serialization error — silently ignore */
   }
