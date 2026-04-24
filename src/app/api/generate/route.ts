@@ -112,7 +112,7 @@ JSON Schema:
             "COMMENT_triangle": "x1, y1, x2, y2, x3, y3, fill (boolean)",
             "COMMENT_point": "x, y, label (string), labelPosition (top|bottom|left|right)",
             "COMMENT_arrow": "x1, y1, x2, y2",
-            "COMMENT_text": "x, y, content (string), fontSize (number), anchor (optional: 'start' | 'middle' | 'end' — default 'start' places x at LEFT edge of text; use 'middle' to center at x, 'end' to right-align)",
+            "COMMENT_text": "x, y, content (string), fontSize (number), anchor ('start' | 'middle' | 'end' — ALWAYS SET THIS, default to 'middle' which centers text at (x, y). 'start' = x is left edge, 'end' = x is right edge)",
             "COMMENT_curve": "fn (js math expr using x), xMin, xMax, yScale, yOffset",
             "COMMENT_shade": "points ([[x,y],...]), opacity (0-1)",
             "COMMENT_angle_mark": "cx, cy, r, startAngle, endAngle (radians)",
@@ -182,30 +182,30 @@ but spread across the whole canvas so nothing stacks."
   are wasting the canvas. Use the edges: put legends in bottom margins, step-labels
   in left margin, summary formulas in top-right.
 
-TEXT ANCHORING (critical — prevents "label overflows into box" bugs):
-The \`text\` primitive's \`x\` is the LEFT edge of the text by default. So a label
-like "F = 10 N" with \`x: 300, fontSize: 18\` starts at x=300 and extends RIGHTWARD
-to roughly x=390. If you want text CENTERED on a point (inside a box, next to a
-node), you MUST pass \`anchor: 'middle'\` — then \`x\` is treated as the center.
+TEXT ANCHORING (critical — when you say "put text at (X, Y)" the output must land there):
 
-USE anchor: 'middle' FOR:
-- Text inside a \`rect\` (pass the rect's center x as the text's x).
-- Text centered below a \`point\`, \`circle\`, or node.
-- Titles / section headers.
-- Any caption where you naturally think "place this at x=N".
+ALWAYS pass \`anchor: 'middle'\` on EVERY text primitive unless you have a specific
+reason not to. With \`anchor: 'middle'\`, the point (x, y) is the CENTER of the text —
+which is what you mean 99% of the time ("label this node", "put a formula here",
+"title at top-center"). This is the default you should reach for.
 
-USE anchor: 'end' FOR:
-- Labels to the RIGHT of something where the text should END at x.
-- Right-side legend entries.
+The omitted/default anchor is 'start' — x is the LEFT EDGE of the text — which is
+almost never what you actually want and causes labels to drift rightward, overflow
+into adjacent shapes, and feel "off-center." DO NOT OMIT the anchor param.
 
-USE anchor: 'start' (or omit) FOR:
-- Labels to the LEFT of something where the text extends leftward-to-rightward.
-- Inline annotations like "← force here" that hug a specific coordinate.
+When to use each:
+- \`anchor: 'middle'\` — centered text. Use for labels inside rects/circles, node
+  names, titles, formulas, captions, legend entries. (99% of cases.)
+- \`anchor: 'end'\` — right-edge anchored. Use only for labels that should END at a
+  specific x, like right-aligned axis labels or legend values.
+- \`anchor: 'start'\` — left-edge anchored. Use only for prose-like inline
+  annotations (bullet list items, reading-order text in a left margin) where the
+  text genuinely starts at x and reads rightward.
 
-Estimate text width as \`fontSize * 0.55 * charCount\`. If your text is 10 chars at
-fontSize 18, it's ~99 px wide. Pick x such that [x, x+width] (for 'start'),
-[x-width/2, x+width/2] (for 'middle'), or [x-width, x] (for 'end') stays in open
-space and doesn't cross any other drawing's bounding box.
+Estimate text width as \`fontSize * 0.55 * charCount\`. After picking x, verify the
+resulting box \`[x-width/2, x+width/2]\` (for 'middle') doesn't cross any other
+drawing's bounding box. Nudge y by at least \`fontSize + 6\` between stacked labels
+so they don't touch vertically either.
 
 DESMOS LATEX RULES (for the desmosExpressions array — optional, up to 6 items):
 
