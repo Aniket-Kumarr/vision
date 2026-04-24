@@ -344,7 +344,11 @@ export default function CanvasPage() {
           return null;
         }
       })();
-      router.replace(subj === 'math' || subj === 'physics' ? `/chat?subject=${subj}` : '/chat');
+      router.replace(
+        subj === 'math' || subj === 'physics' || subj === 'chemistry' || subj === 'biology'
+          ? `/chat?subject=${subj}`
+          : '/chat',
+      );
       return;
     }
     const topic =
@@ -371,7 +375,7 @@ export default function CanvasPage() {
     const activeSubject = (() => {
       try {
         const s = localStorage.getItem(VISUA_AI_SUBJECT_KEY);
-        return s === 'math' || s === 'physics' ? s : 'math';
+        return s === 'math' || s === 'physics' || s === 'chemistry' || s === 'biology' ? s : 'math';
       } catch {
         return 'math';
       }
@@ -454,7 +458,9 @@ export default function CanvasPage() {
         const storedSubject = (() => {
           try {
             const s = localStorage.getItem(VISUA_AI_SUBJECT_KEY);
-            return s === 'math' || s === 'physics' ? s : undefined;
+            return s === 'math' || s === 'physics' || s === 'chemistry' || s === 'biology'
+              ? (s as 'math' | 'physics' | 'chemistry' | 'biology')
+              : undefined;
           } catch {
             return undefined;
           }
@@ -571,7 +577,11 @@ export default function CanvasPage() {
     } catch {
       // ignore
     }
-    router.push(subject === 'math' || subject === 'physics' ? `/chat?subject=${subject}` : '/chat');
+    router.push(
+      subject === 'math' || subject === 'physics' || subject === 'chemistry' || subject === 'biology'
+        ? `/chat?subject=${subject}`
+        : '/chat',
+    );
   }, [router]);
 
   /** Fire-and-forget quiz card generation when the last step completes. */

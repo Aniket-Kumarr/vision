@@ -27,9 +27,21 @@ import {
   displayPhysicsTopicForUserConcept,
   physicsPromptForUserConcept,
 } from '@/lib/physicsPrompts';
+import {
+  CHEMISTRY_SUGGESTION_CHIPS,
+  CHEMISTRY_SUGGESTION_TO_PROMPT,
+  displayChemistryTopicForUserConcept,
+  chemistryPromptForUserConcept,
+} from '@/lib/chemistryPrompts';
+import {
+  BIOLOGY_SUGGESTION_CHIPS,
+  BIOLOGY_SUGGESTION_TO_PROMPT,
+  displayBiologyTopicForUserConcept,
+  biologyPromptForUserConcept,
+} from '@/lib/biologyPrompts';
 import { detectSubjectScope } from '@/lib/subjectScope';
 
-type Subject = 'math' | 'physics';
+type Subject = 'math' | 'physics' | 'chemistry' | 'biology';
 import {
   type LessonHistoryItem,
   clearLessons,
@@ -49,7 +61,7 @@ function relativeTime(ts: number): string {
 
 interface LessonHistoryProps {
   disabled: boolean;
-  subject: 'math' | 'physics';
+  subject: Subject;
   onReplay: (item: LessonHistoryItem) => void;
 }
 
@@ -268,10 +280,10 @@ function ChatPageInner() {
 
   const subject: Subject = useMemo(() => {
     const q = searchParams.get('subject');
-    if (q === 'math' || q === 'physics') return q;
+    if (q === 'math' || q === 'physics' || q === 'chemistry' || q === 'biology') return q;
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem(VISUA_AI_SUBJECT_KEY);
-      if (stored === 'math' || stored === 'physics') return stored;
+      if (stored === 'math' || stored === 'physics' || stored === 'chemistry' || stored === 'biology') return stored as Subject;
     }
     return 'math';
   }, [searchParams]);
@@ -284,12 +296,38 @@ function ChatPageInner() {
     }
   }, [subject]);
 
-  const chips = subject === 'physics' ? PHYSICS_SUGGESTION_CHIPS : SUGGESTION_CHIPS;
+  const chips =
+    subject === 'physics'
+      ? PHYSICS_SUGGESTION_CHIPS
+      : subject === 'chemistry'
+        ? CHEMISTRY_SUGGESTION_CHIPS
+        : subject === 'biology'
+          ? BIOLOGY_SUGGESTION_CHIPS
+          : SUGGESTION_CHIPS;
   const promptMap: Record<string, string> =
-    subject === 'physics' ? PHYSICS_SUGGESTION_TO_PROMPT : SUGGESTION_TO_PROMPT;
-  const genericPrompt = subject === 'physics' ? physicsPromptForUserConcept : promptForUserConcept;
+    subject === 'physics'
+      ? PHYSICS_SUGGESTION_TO_PROMPT
+      : subject === 'chemistry'
+        ? CHEMISTRY_SUGGESTION_TO_PROMPT
+        : subject === 'biology'
+          ? BIOLOGY_SUGGESTION_TO_PROMPT
+          : SUGGESTION_TO_PROMPT;
+  const genericPrompt =
+    subject === 'physics'
+      ? physicsPromptForUserConcept
+      : subject === 'chemistry'
+        ? chemistryPromptForUserConcept
+        : subject === 'biology'
+          ? biologyPromptForUserConcept
+          : promptForUserConcept;
   const displayTopic =
-    subject === 'physics' ? displayPhysicsTopicForUserConcept : displayTopicForUserConcept;
+    subject === 'physics'
+      ? displayPhysicsTopicForUserConcept
+      : subject === 'chemistry'
+        ? displayChemistryTopicForUserConcept
+        : subject === 'biology'
+          ? displayBiologyTopicForUserConcept
+          : displayTopicForUserConcept;
 
   const firstName = useMemo(() => {
     if (!user?.name) return 'there';
@@ -406,12 +444,16 @@ function ChatPageInner() {
       {/* Ambient warm chalk dust drifting up — subtle, low count */}
       <ChalkParticles
         count={22}
-        colors={subject === 'physics' ? LILAC_CHALK_DUST : WARM_CHALK_DUST}
+        colors={subject === 'physics' || subject === 'chemistry' ? LILAC_CHALK_DUST : WARM_CHALK_DUST}
         className="chat-ambient"
       />
 
       {/* Static decorative doodles in margins — swap with subject */}
-      {subject === 'physics' ? <PhysicsDoodles /> : <ChatDoodles />}
+      {subject === 'physics' || subject === 'chemistry' || subject === 'biology' ? (
+        <PhysicsDoodles />
+      ) : (
+        <ChatDoodles />
+      )}
 
       <motion.header
         className="chat-session-nav"
@@ -422,7 +464,13 @@ function ChatPageInner() {
         <div className="chat-session-nav-left">
           <span className="chat-session-logo">Visua AI</span>
           <span className="chat-subject-pill" aria-label={`Current subject: ${subject}`}>
-            {subject === 'physics' ? 'Physics' : 'Math'}
+            {subject === 'physics'
+              ? 'Physics'
+              : subject === 'chemistry'
+                ? 'Chemistry'
+                : subject === 'biology'
+                  ? 'Biology'
+                  : 'Math'}
           </span>
         </div>
         <div className="chat-session-nav-right">
@@ -497,7 +545,11 @@ function ChatPageInner() {
                   text={
                     subject === 'physics'
                       ? "I'm ready when you are. Ask about any topic — free-body diagrams, projectile motion, energy, waves, or something you're stuck on in class."
-                      : "I'm ready when you are. Ask about any topic — unit circle, derivatives, area puzzles, or something you're stuck on in class."
+                      : subject === 'chemistry'
+                        ? "I'm ready when you are. Ask about any chemistry topic — orbital shapes, reaction mechanisms, titration curves, or something you're stuck on in class."
+                        : subject === 'biology'
+                          ? "I'm ready when you are. Ask about any biology topic — action potentials, the Krebs cycle, Punnett squares, or something you're stuck on in class."
+                          : "I'm ready when you are. Ask about any topic — unit circle, derivatives, area puzzles, or something you're stuck on in class."
                   }
                   startDelayMs={650}
                   charMs={14}
@@ -517,17 +569,40 @@ function ChatPageInner() {
               <div className="scope-banner-body">
                 <p className="scope-banner-title">
                   That sounds like a{' '}
-                  <strong>{scopeBanner.likelySubject === 'math' ? 'math' : 'physics'}</strong>{' '}
+                  <strong>
+                    {scopeBanner.likelySubject === 'math'
+                      ? 'math'
+                      : scopeBanner.likelySubject === 'physics'
+                        ? 'physics'
+                        : scopeBanner.likelySubject === 'chemistry'
+                          ? 'chemistry'
+                          : 'biology'}
+                  </strong>{' '}
                   topic.
                 </p>
                 <p className="scope-banner-text">
-                  You&apos;re currently in the {subject === 'physics' ? 'Physics' : 'Math'} workspace.
-                  Want to switch?
+                  You&apos;re currently in the{' '}
+                  {subject === 'physics'
+                    ? 'Physics'
+                    : subject === 'chemistry'
+                      ? 'Chemistry'
+                      : subject === 'biology'
+                        ? 'Biology'
+                        : 'Math'}{' '}
+                  workspace. Want to switch?
                 </p>
               </div>
               <div className="scope-banner-actions">
                 <button type="button" className="scope-banner-primary" onClick={switchSubjectAndStart}>
-                  Switch to {scopeBanner.likelySubject === 'math' ? 'Math' : 'Physics'} →
+                  Switch to{' '}
+                  {scopeBanner.likelySubject === 'math'
+                    ? 'Math'
+                    : scopeBanner.likelySubject === 'physics'
+                      ? 'Physics'
+                      : scopeBanner.likelySubject === 'chemistry'
+                        ? 'Chemistry'
+                        : 'Biology'}{' '}
+                  →
                 </button>
                 <button type="button" className="scope-banner-secondary" onClick={continueAnyway}>
                   Continue anyway
@@ -554,7 +629,11 @@ function ChatPageInner() {
                 placeholder={
                   subject === 'physics'
                     ? 'e.g. Why does a projectile travel in a parabola?'
-                    : 'e.g. Explain the unit circle intuitively'
+                    : subject === 'chemistry'
+                      ? 'e.g. How do sp3 orbitals create tetrahedral geometry?'
+                      : subject === 'biology'
+                        ? 'e.g. Walk me through the Krebs cycle'
+                        : 'e.g. Explain the unit circle intuitively'
                 }
                 className="prompt-input"
                 aria-label="Concept input"

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
-import { FIXTURES } from '@/lib/fixtures';
+import { FIXTURES, MATH_FIXTURES, CHEM_FIXTURES, BIO_FIXTURES } from '@/lib/fixtures';
 import { Blueprint, Domain, Strategy } from '@/lib/types';
 
 // ---------------------------------------------------------------------------
@@ -20,7 +20,7 @@ const client = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
-export type Subject = 'math' | 'physics';
+export type Subject = 'math' | 'physics' | 'chemistry' | 'biology';
 
 const MATH_INTRO = `You are a mathematical visualization engine for an interactive chalkboard animation app. Your job is to take any math concept and break it down into a step-by-step visual explanation that draws on a black chalkboard with colorful chalk.`;
 
@@ -28,8 +28,20 @@ const PHYSICS_INTRO = `You are a physics visualization engine for an interactive
 
 IMPORTANT: Only create physics lessons. If the topic is clearly a pure math topic with no physical interpretation (like "unit circle proof", "integration by parts", "derivative rules"), reframe it with a physical application — e.g. "unit circle" → circular motion; "derivative" → velocity as derivative of position; "integral" → work as integral of force. Every lesson must show a physical scenario, quantity, or phenomenon, not abstract math.`;
 
+const CHEMISTRY_INTRO = `You are a chemistry visualization engine for an interactive chalkboard animation app. Your job is to take any chemistry concept — molecular structures, orbital shapes, reaction mechanisms, energy diagrams, periodic trends, acid-base behavior — and break it down into a step-by-step visual explanation that draws on a black chalkboard with colorful chalk.
+
+Use the drawing primitives (line, circle, arc, text, arrow, shade, etc.) to render structural diagrams, orbital lobe shapes, curved reaction arrows showing electron flow, and energy diagrams with labeled axes. Focus on visual intuition: WHY molecules have the shapes they do, WHY reactions proceed as they do — not just symbolic equations.`;
+
+const BIOLOGY_INTRO = `You are a biology visualization engine for an interactive chalkboard animation app. Your job is to take any biology concept — cellular processes, organelles, metabolic cycles (Krebs, Calvin), genetics (Punnett squares, DNA), action potentials, ecology — and break it down into a step-by-step visual explanation that draws on a black chalkboard with colorful chalk.
+
+Use the drawing primitives (line, circle, arc, text, arrow, shade, etc.) to render process diagrams, labeled organelles, cycle arrows, membrane cross-sections, and population charts. Focus on the story: WHY the process works the way it does, what each step accomplishes biologically — not rote memorization.`;
+
 export function buildSystemPrompt(subject: Subject): string {
-  const intro = subject === 'physics' ? PHYSICS_INTRO : MATH_INTRO;
+  let intro: string;
+  if (subject === 'physics') intro = PHYSICS_INTRO;
+  else if (subject === 'chemistry') intro = CHEMISTRY_INTRO;
+  else if (subject === 'biology') intro = BIOLOGY_INTRO;
+  else intro = MATH_INTRO;
   return `${intro}
 
 Output ONLY a raw valid JSON object. No markdown. No backticks. No explanation. Just the JSON.
@@ -119,17 +131,25 @@ function normalizeConceptKey(concept: string): string {
 /** Skip fuzzy fixture matching for long prompts (e.g. chip briefs) to avoid false positives like "antiderivative" matching "derivative". */
 const MAX_FIXTURE_FUZZY_LEN = 140;
 
-function findFixture(concept: string): Blueprint | null {
+/** Per-subject fixture banks so a chemistry concept never accidentally matches a math fixture. */
+const SUBJECT_FIXTURE_BANKS: Record<Subject, Record<string, Blueprint>> = {
+  math: MATH_FIXTURES,
+  physics: {},
+  chemistry: CHEM_FIXTURES,
+  biology: BIO_FIXTURES,
+};
+
+function findFixtureForSubject(concept: string, subject: Subject): Blueprint | null {
+  const bank = SUBJECT_FIXTURE_BANKS[subject];
   const key = normalizeConceptKey(concept);
-  if (FIXTURES[key]) return FIXTURES[key];
+  if (bank[key]) return bank[key];
 
   if (key.length > MAX_FIXTURE_FUZZY_LEN) return null;
 
-  // Fuzzy match only when the shorter string is long enough to avoid accidental hits.
   const minLen = 6;
-  for (const fixtureKey of Object.keys(FIXTURES)) {
-    if (key.includes(fixtureKey) && fixtureKey.length >= minLen) return FIXTURES[fixtureKey];
-    if (fixtureKey.includes(key) && key.length >= minLen) return FIXTURES[fixtureKey];
+  for (const fixtureKey of Object.keys(bank)) {
+    if (key.includes(fixtureKey) && fixtureKey.length >= minLen) return bank[fixtureKey];
+    if (fixtureKey.includes(key) && key.length >= minLen) return bank[fixtureKey];
   }
   return null;
 }
@@ -238,20 +258,25 @@ export async function POST(req: NextRequest) {
 
     const subjectRaw = body?.subject;
     const subject: Subject =
-      subjectRaw === 'physics' || subjectRaw === 'math' ? subjectRaw : 'math';
+      subjectRaw === 'physics'
+        ? 'physics'
+        : subjectRaw === 'chemistry'
+          ? 'chemistry'
+          : subjectRaw === 'biology'
+            ? 'biology'
+            : 'math';
 
     // Optional: force fixtures only (no API), useful for offline demos.
     // Set VISUA_AI_USE_FIXTURES_ONLY=1 in .env.local
     if (process.env.VISUA_AI_USE_FIXTURES_ONLY === '1') {
-      const onlyFixture = findFixture(concept) ?? Object.values(FIXTURES)[0];
+      const onlyFixture = findFixtureForSubject(concept, subject) ?? Object.values(FIXTURES)[0];
       return NextResponse.json({ blueprint: onlyFixture });
     }
 
-    // Check fixtures first (avoids API call for well-known concepts).
-    // Fixtures are all math — skip them entirely for physics so we never
-    // serve a math lesson to the physics workspace.
-    if (subject === 'math') {
-      const fixture = findFixture(concept);
+    // Check subject-scoped fixtures first (avoids API call for well-known concepts).
+    // Physics has no fixtures — always go to the API for physics.
+    if (subject !== 'physics') {
+      const fixture = findFixtureForSubject(concept, subject);
       if (fixture) {
         return NextResponse.json({ blueprint: fixture });
       }

@@ -5,7 +5,7 @@ export const REPLAY_KEY = 'visua_ai_replay_blueprint';
 
 const MAX_HISTORY = 50;
 
-export type LessonSubject = 'math' | 'physics';
+export type LessonSubject = 'math' | 'physics' | 'chemistry' | 'biology';
 
 export interface LessonHistoryItem {
   id: string;
@@ -21,6 +21,12 @@ export interface LessonHistoryItem {
 function isHistoryItem(x: unknown): x is LessonHistoryItem {
   if (!x || typeof x !== 'object') return false;
   const o = x as Record<string, unknown>;
+  const validSubject =
+    o.subject === undefined ||
+    o.subject === 'math' ||
+    o.subject === 'physics' ||
+    o.subject === 'chemistry' ||
+    o.subject === 'biology';
   return (
     typeof o.id === 'string' &&
     typeof o.topic === 'string' &&
@@ -28,7 +34,7 @@ function isHistoryItem(x: unknown): x is LessonHistoryItem {
     typeof o.createdAt === 'number' &&
     typeof o.blueprint === 'object' &&
     o.blueprint !== null &&
-    (o.subject === undefined || o.subject === 'math' || o.subject === 'physics')
+    validSubject
   );
 }
 

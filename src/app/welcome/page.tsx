@@ -31,7 +31,7 @@ const fadeUp = {
   }),
 };
 
-type Subject = 'math' | 'physics';
+type Subject = 'math' | 'physics' | 'chemistry' | 'biology';
 
 export default function WelcomePage() {
   const router = useRouter();
@@ -249,6 +249,56 @@ export default function WelcomePage() {
               <p className="welcome-card-desc">
                 Free-body diagrams, projectile paths, and energy flows sketched step by step. Mechanics
                 first — more coming.
+              </p>
+              <span className="welcome-card-cta">
+                Start drawing <span aria-hidden>→</span>
+              </span>
+            </div>
+          </motion.button>
+
+          <motion.button
+            type="button"
+            className="welcome-card welcome-card-chemistry"
+            variants={fadeUp}
+            custom={2}
+            onClick={() => chooseSubject('chemistry')}
+            aria-label="Enter the chemistry workspace"
+          >
+            <div className="welcome-card-noise" aria-hidden />
+            <div className="welcome-card-inner">
+              <span className="welcome-card-kicker">Subject</span>
+              <h2 className="welcome-card-title">Chemistry</h2>
+              <p className="welcome-card-tagline">
+                orbitals, reactions, energy diagrams
+              </p>
+              <p className="welcome-card-desc">
+                Structural diagrams, orbital shapes, reaction arrows, and titration curves drawn
+                step by step on the chalkboard.
+              </p>
+              <span className="welcome-card-cta">
+                Start drawing <span aria-hidden>→</span>
+              </span>
+            </div>
+          </motion.button>
+
+          <motion.button
+            type="button"
+            className="welcome-card welcome-card-biology"
+            variants={fadeUp}
+            custom={3}
+            onClick={() => chooseSubject('biology')}
+            aria-label="Enter the biology workspace"
+          >
+            <div className="welcome-card-noise" aria-hidden />
+            <div className="welcome-card-inner">
+              <span className="welcome-card-kicker">Subject</span>
+              <h2 className="welcome-card-title">Biology</h2>
+              <p className="welcome-card-tagline">
+                cycles, organelles, genetics, action potentials
+              </p>
+              <p className="welcome-card-desc">
+                Process diagrams, Krebs cycles, Punnett squares, and membrane dynamics visualized
+                one step at a time.
               </p>
               <span className="welcome-card-cta">
                 Start drawing <span aria-hidden>→</span>

@@ -1,4 +1,8 @@
 import { Blueprint } from './types';
+export { CHEM_FIXTURES } from './chemFixtures';
+export { BIO_FIXTURES } from './bioFixtures';
+import { CHEM_FIXTURES } from './chemFixtures';
+import { BIO_FIXTURES } from './bioFixtures';
 
 export const PYTHAGOREAN_THEOREM: Blueprint = {
   title: 'Pythagorean Theorem',
@@ -483,9 +487,15 @@ export const WHAT_IS_A_DERIVATIVE: Blueprint = {
   ],
 };
 
-export const FIXTURES: Record<string, Blueprint> = {
+export const MATH_FIXTURES: Record<string, Blueprint> = {
   'pythagorean theorem': PYTHAGOREAN_THEOREM,
   'unit circle': UNIT_CIRCLE,
   'derivative': WHAT_IS_A_DERIVATIVE,
   'what is a derivative': WHAT_IS_A_DERIVATIVE,
+};
+
+export const FIXTURES: Record<string, Blueprint> = {
+  ...MATH_FIXTURES,
+  ...CHEM_FIXTURES,
+  ...BIO_FIXTURES,
 };
