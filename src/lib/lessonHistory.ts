@@ -113,26 +113,66 @@ export function clearLessons(): void {
   }
 }
 
-/** Stash a blueprint to be picked up by /canvas instead of calling the API. */
-export function setReplay(blueprint: Blueprint): void {
+interface ReplayStash {
+  concept: string;
+  blueprint: Blueprint;
+}
+
+function isReplayStash(x: unknown): x is ReplayStash {
+  if (!x || typeof x !== 'object') return false;
+  const o = x as Record<string, unknown>;
+  return (
+    typeof o.concept === 'string' &&
+    typeof o.blueprint === 'object' &&
+    o.blueprint !== null
+  );
+}
+
+/**
+ * Stash a blueprint to be picked up by /canvas instead of calling the API.
+ * The concept is persisted alongside so `takeReplay` can refuse mismatched
+ * reads (e.g. a stale stash left over from a previous click on a different
+ * lesson). The stash is NON-destructive: it is only overwritten by another
+ * `setReplay` or removed by `clearReplay`. That survives React Strict Mode's
+ * double-mount in dev AND a hard page reload on /canvas — both of which
+ * previously caused the stash to be lost and /api/generate to fire.
+ */
+export function setReplay(concept: string, blueprint: Blueprint): void {
   if (typeof window === 'undefined') return;
+  const stash: ReplayStash = { concept, blueprint };
   try {
-    localStorage.setItem(REPLAY_KEY, JSON.stringify(blueprint));
+    localStorage.setItem(REPLAY_KEY, JSON.stringify(stash));
   } catch {
     /* ignore */
   }
 }
 
-/** Read AND clear the stashed replay blueprint. Returns null if none. */
-export function takeReplay(): Blueprint | null {
+/**
+ * Read the stashed replay blueprint. Returns the blueprint only if the stash
+ * exists and matches `expectedConcept`. Returns null on no stash or concept
+ * mismatch — leaving any mismatched stash intact for a future matching read.
+ */
+export function takeReplay(expectedConcept: string): Blueprint | null {
   if (typeof window === 'undefined') return null;
   try {
     const raw = localStorage.getItem(REPLAY_KEY);
     if (!raw) return null;
-    localStorage.removeItem(REPLAY_KEY);
-    return JSON.parse(raw) as Blueprint;
+    const parsed = JSON.parse(raw) as unknown;
+    if (!isReplayStash(parsed)) return null;
+    if (parsed.concept !== expectedConcept) return null;
+    return parsed.blueprint;
   } catch {
     return null;
+  }
+}
+
+/** Clear any currently-stashed replay. Call when starting a fresh lesson. */
+export function clearReplay(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.removeItem(REPLAY_KEY);
+  } catch {
+    /* ignore */
   }
 }
 
