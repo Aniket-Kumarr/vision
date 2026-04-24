@@ -9,6 +9,7 @@ import PhysicsDoodles from '@/components/PhysicsDoodles';
 import SuggestionChips from '@/components/SuggestionChips';
 import VoiceInputButton from '@/components/VoiceInputButton';
 import DifficultySlider from '@/components/DifficultySlider';
+import PersonaPicker, { readStoredPersona } from '@/components/PersonaPicker';
 import {
   VISUA_AI_CONCEPT_KEY,
   VISUA_AI_SUBJECT_KEY,
@@ -16,7 +17,7 @@ import {
   VISUA_AI_USER_KEY,
   type VisuaAiUser,
 } from '@/lib/auth';
-import { type DifficultyLevel } from '@/lib/types';
+import { type DifficultyLevel, type Persona } from '@/lib/types';
 import {
   displayTopicForUserConcept,
   promptForUserConcept,
@@ -300,6 +301,7 @@ function ChatPageInner() {
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [difficultyLevel, setDifficultyLevel] = useState<DifficultyLevel>('college');
   const [showDifficultyPicker, setShowDifficultyPicker] = useState(false);
+  const [persona, setPersona] = useState<Persona>('default');
 
   const subject: Subject = useMemo(() => {
     const q = searchParams.get('subject');
@@ -318,6 +320,11 @@ function ChatPageInner() {
       // ignore
     }
   }, [subject]);
+
+  // Hydrate persisted persona after mount (SSR-safe).
+  useEffect(() => {
+    setPersona(readStoredPersona());
+  }, []);
 
   const chips =
     subject === 'physics'
@@ -539,6 +546,7 @@ function ChatPageInner() {
           >
             <span>Level: {difficultyLevel.charAt(0).toUpperCase() + difficultyLevel.slice(1)}</span>
           </button>
+          <PersonaPicker value={persona} onChange={setPersona} compact />
         </div>
         <div className="chat-session-nav-right">
           <button

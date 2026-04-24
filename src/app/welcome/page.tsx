@@ -14,6 +14,8 @@ import {
   type VisuaAiUser,
 } from '@/lib/auth';
 import { listDue } from '@/lib/quizDeck';
+import PersonaPicker, { readStoredPersona } from '@/components/PersonaPicker';
+import { type Persona } from '@/lib/types';
 
 const WARM_CHALK_DUST: [number, number, number][] = [
   [192, 90, 40],
@@ -39,6 +41,7 @@ export default function WelcomePage() {
   const [dueCount, setDueCount] = useState(0);
   const [threeDMode, setThreeDMode] = useState(false);
   const [quickConcept, setQuickConcept] = useState('');
+  const [persona, setPersona] = useState<Persona>('default');
 
   useEffect(() => {
     try {
@@ -57,6 +60,11 @@ export default function WelcomePage() {
   // Load due card count (SSR-safe — runs only in browser after mount)
   useEffect(() => {
     setDueCount(listDue().length);
+  }, []);
+
+  // Hydrate persisted persona after mount (SSR-safe).
+  useEffect(() => {
+    setPersona(readStoredPersona());
   }, []);
 
   const firstName = user?.name?.split(' ')[0] ?? 'there';
@@ -499,6 +507,14 @@ export default function WelcomePage() {
             </button>
           </form>
         </motion.section>
+
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.55, duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+        >
+          <PersonaPicker value={persona} onChange={setPersona} />
+        </motion.div>
 
         <motion.div
           className="welcome-foot-row"

@@ -2846,6 +2846,88 @@ canvas {
   transition: background 0.12s;
 }
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   PersonaPicker — "Explain it like…" narration voice selector
+   ─────────────────────────────────────────────────────────────────────────── */
+
+/* ── Compact nav-pill variant ── */
+.persona-picker--compact {
+  position: relative;
+}
+
+.persona-pill-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-dm-sans), 'DM Sans', sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #7a5a42;
+  background: rgba(192, 90, 40, 0.08);
+  border: 0.5px solid rgba(192, 90, 40, 0.28);
+  border-radius: 999px;
+  padding: 4px 10px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.persona-pill-btn:hover {
+  background: rgba(192, 90, 40, 0.14);
+  border-color: rgba(192, 90, 40, 0.45);
+}
+
+.persona-pill-caret {
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+}
+
+/* Physics subject tint */
+.chat-session-page.subject-physics .persona-pill-btn {
+  color: #4a3d6e;
+  background: rgba(110, 86, 160, 0.14);
+  border-color: rgba(110, 86, 160, 0.35);
+}
+
+.chat-session-page.subject-physics .persona-pill-btn:hover {
+  background: rgba(110, 86, 160, 0.22);
+  border-color: rgba(110, 86, 160, 0.5);
+}
+
+/* ── Popover (compact) ── */
+.persona-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 200;
+  background: #fffdf8;
+  border: 1px solid rgba(44, 26, 14, 0.14);
+  border-radius: 10px;
+  box-shadow: 0 6px 24px rgba(44, 26, 14, 0.1), 0 1px 4px rgba(44, 26, 14, 0.06);
+  padding: 6px;
+  min-width: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.persona-option {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  border-radius: 7px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s;
+}
+
 .export-menu-item:hover {
   background: rgba(245, 240, 232, 0.08);
 }
@@ -3047,4 +3129,96 @@ canvas {
 .chat-session-page.subject-physics .difficulty-picker-wrapper {
   background: rgba(35, 26, 60, 0.04);
   border-color: rgba(35, 26, 60, 0.08);
+}
+
+.persona-option:hover {
+  background: rgba(192, 90, 40, 0.07);
+}
+
+.persona-option.is-selected {
+  background: rgba(192, 90, 40, 0.10);
+}
+
+.persona-option-label {
+  font-family: var(--font-dm-sans), 'DM Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: #2c1a0e;
+  flex-shrink: 0;
+}
+
+.persona-option-oneliner {
+  font-family: var(--font-dm-sans), 'DM Sans', sans-serif;
+  font-size: 11px;
+  color: #9a7a62;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.persona-option-check {
+  font-size: 12px;
+  color: #c05a28;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+/* ── Full pill-row variant (welcome page) ── */
+.persona-picker--row {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin: 4px 0 0;
+}
+
+.persona-row-label {
+  font-family: var(--font-dm-sans), 'DM Sans', sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #9a7a62;
+  margin: 0;
+}
+
+.persona-row-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+}
+
+.persona-row-pill {
+  font-family: var(--font-dm-sans), 'DM Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  color: #7a5a42;
+  background: rgba(192, 90, 40, 0.07);
+  border: 1px solid rgba(192, 90, 40, 0.22);
+  border-radius: 999px;
+  padding: 5px 14px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.persona-row-pill:hover {
+  background: rgba(192, 90, 40, 0.13);
+  border-color: rgba(192, 90, 40, 0.4);
+}
+
+.persona-row-pill.is-active {
+  color: #c05a28;
+  background: rgba(192, 90, 40, 0.16);
+  border-color: rgba(192, 90, 40, 0.55);
+  font-weight: 600;
+}
+
+.persona-row-hint {
+  font-family: var(--font-dm-sans), 'DM Sans', sans-serif;
+  font-size: 12px;
+  color: #9a7a62;
+  margin: 0;
+  font-style: italic;
 }

@@ -7,8 +7,9 @@ import type { ChalkCanvasHandle } from '@/components/ChalkCanvas';
 import StepController from '@/components/StepController';
 import ChalkParticles from '@/components/ChalkParticles';
 import ExportButton from '@/components/ExportButton';
-import { Blueprint, Drawing } from '@/lib/types';
+import { Blueprint, Drawing, Persona } from '@/lib/types';
 import { VISUA_AI_CONCEPT_KEY, VISUA_AI_SUBJECT_KEY, VISUA_AI_TOPIC_KEY } from '@/lib/auth';
+import { VISUA_AI_PERSONA_KEY } from '@/components/PersonaPicker';
 import { addLesson, takeReplay } from '@/lib/lessonHistory';
 import { extractExpressionsFromBlueprint } from '@/lib/desmos';
 import { encodeBlueprint } from '@/lib/shareLink';
@@ -393,10 +394,25 @@ export default function CanvasPage() {
       }
     })();
 
+    const activePersona: Persona = (() => {
+      const VALID: Persona[] = ['default', 'feynman', 'coach', 'poet', 'rapper', 'grandma'];
+      try {
+        const p = localStorage.getItem(VISUA_AI_PERSONA_KEY);
+        return p && VALID.includes(p as Persona) ? (p as Persona) : 'default';
+      } catch {
+        return 'default';
+      }
+    })();
+
     fetch('/api/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ concept: saved, subject: activeSubject, level: activeDifficulty }),
+      body: JSON.stringify({
+        concept: saved,
+        subject: activeSubject,
+        level: activeDifficulty,
+        persona: activePersona,
+      }),
       signal: controller.signal,
     })
       .then(async (r) => {

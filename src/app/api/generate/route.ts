@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { FIXTURES, MATH_FIXTURES, CHEM_FIXTURES, BIO_FIXTURES, MUSIC_FIXTURES, CS_FIXTURES } from '@/lib/fixtures';
-import { Blueprint, Domain, Strategy, DifficultyLevel } from '@/lib/types';
+import { Blueprint, Domain, Persona, Strategy, DifficultyLevel } from '@/lib/types';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -206,6 +206,34 @@ function findFixtureForSubject(concept: string, subject: Subject): Blueprint | n
  * A hard timeout is enforced via AbortController so a slow/hung API call does
  * not block a serverless function indefinitely.
  */
+// ---------------------------------------------------------------------------
+// Persona support
+// ---------------------------------------------------------------------------
+
+const VALID_PERSONAS = new Set<Persona>([
+  'default',
+  'feynman',
+  'coach',
+  'poet',
+  'rapper',
+  'grandma',
+]);
+
+/** Suffix appended to the USER turn only (keeps system-prompt cache hits). */
+const PERSONA_SUFFIX: Record<Persona, string> = {
+  default: '',
+  feynman:
+    'Narrate in Richard Feynman\'s voice: intuitive, story-like, analogies before symbols.',
+  coach:
+    'Narrate like an enthusiastic coach: direct, punchy, celebrate each step.',
+  poet:
+    'Narrate in a poetic voice: metaphors, cadence, short lines.',
+  rapper:
+    'Narrate with rhythm and internal rhyme — tasteful, not cringe. 1–2 bars per step.',
+  grandma:
+    'Narrate like a loving grandparent: patient, warm, everyday analogies, no jargon.',
+};
+
 const VALID_DOMAINS = new Set<Domain>([
   'algebra',
   'geometry',
@@ -262,11 +290,20 @@ export function parseModelJson(text: string): unknown {
   return JSON.parse(cleaned);
 }
 
-async function generateWithClaude(concept: string, subject: Subject, level: DifficultyLevel = 'college'): Promise<Blueprint> {
+async function generateWithClaude(
+  concept: string,
+  subject: Subject,
+  level: DifficultyLevel = 'college',
+  persona: Persona = 'default',
+): Promise<Blueprint> {
   let lastErr: unknown = null;
+  const suffix = PERSONA_SUFFIX[persona];
+  const difficultyPrompt = getDifficultyLevelSuffix(level);
+  const userContent = suffix
+    ? `Create a visual chalk explanation (${subject} subject) for: "${concept}"\n\n${difficultyPrompt}\n\n${suffix}`
+    : `Create a visual chalk explanation (${subject} subject) for: "${concept}"\n\n${difficultyPrompt}`;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const difficultyPrompt = getDifficultyLevelSuffix(level);
       const response = await client.messages.create({
         model: GENERATION_MODEL,
         max_tokens: 4096,
@@ -274,7 +311,7 @@ async function generateWithClaude(concept: string, subject: Subject, level: Diff
         messages: [
           {
             role: 'user',
-            content: `Create a visual chalk explanation (${subject} subject) for: "${concept}"\n\n${difficultyPrompt}`,
+            content: userContent,
           },
         ],
       });
@@ -330,6 +367,13 @@ export async function POST(req: NextRequest) {
     const validLevels = new Set<DifficultyLevel>(['kid', 'student', 'college', 'grad', 'researcher']);
     const level: DifficultyLevel = validLevels.has(levelRaw as DifficultyLevel) ? (levelRaw as DifficultyLevel) : 'college';
 
+    // Persona: optional, defaults to 'default', validated against the literal union.
+    const personaRaw = body?.persona;
+    const persona: Persona =
+      typeof personaRaw === 'string' && VALID_PERSONAS.has(personaRaw as Persona)
+        ? (personaRaw as Persona)
+        : 'default';
+
     // Optional: force fixtures only (no API), useful for offline demos.
     // Set VISUA_AI_USE_FIXTURES_ONLY=1 in .env.local
     if (process.env.VISUA_AI_USE_FIXTURES_ONLY === '1') {
@@ -339,7 +383,9 @@ export async function POST(req: NextRequest) {
 
     // Check subject-scoped fixtures first (avoids API call for well-known concepts).
     // Physics has no fixtures — always go to the API for physics.
-    if (subject !== 'physics') {
+    // When a non-default persona is requested we skip fixtures so the narration
+    // is actually generated in the requested voice.
+    if (subject !== 'physics' && persona === 'default') {
       const fixture = findFixtureForSubject(concept, subject);
       if (fixture) {
         return NextResponse.json({ blueprint: fixture });
@@ -358,7 +404,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const blueprint = await generateWithClaude(concept, subject, level);
+    const blueprint = await generateWithClaude(concept, subject, level, persona);
     return NextResponse.json({ blueprint });
   } catch (err) {
     // SECURITY: never reflect raw Error.message to the client; it can contain
