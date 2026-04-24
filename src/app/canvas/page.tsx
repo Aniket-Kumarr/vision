@@ -26,6 +26,7 @@ const GENERATE_TIMEOUT_MS = 180_000;
 
 const VOICE_PREF_KEY = 'visua_ai_voice_on';
 const VOICE_ID_KEY = 'visua_ai_voice_id';
+const SOCRATIC_PREF_KEY = 'visua_ai_socratic_on';
 const DEFAULT_VOICE_ID = 'Xb7hH8MSUJpSbSDYk0k2'; // Alice — "Clear, Engaging Educator"
 
 interface ElevenVoice {
@@ -34,6 +35,430 @@ interface ElevenVoice {
   category?: string;
   description?: string;
   preview_url?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Socratic interstitial types
+// ---------------------------------------------------------------------------
+
+type Verdict = 'correct' | 'partial' | 'wrong';
+
+interface SocraticQuestion {
+  question: string;
+  expectedIntuition: string;
+}
+
+interface SocraticEvaluation {
+  verdict: Verdict;
+  feedback: string;
+  suggestProceed: boolean;
+}
+
+type SocraticPhase =
+  | { phase: 'asking' }
+  | { phase: 'answering'; data: SocraticQuestion }
+  | { phase: 'evaluating'; data: SocraticQuestion; answer: string }
+  | { phase: 'result'; data: SocraticQuestion; evaluation: SocraticEvaluation; answer: string };
+
+// ---------------------------------------------------------------------------
+// Typewriter hook — reveals text character by character
+// ---------------------------------------------------------------------------
+
+function useTypewriter(text: string, speed = 22): string {
+  const [displayed, setDisplayed] = useState('');
+  useEffect(() => {
+    setDisplayed('');
+    if (!text) return;
+    let i = 0;
+    const id = setInterval(() => {
+      i++;
+      setDisplayed(text.slice(0, i));
+      if (i >= text.length) clearInterval(id);
+    }, speed);
+    return () => clearInterval(id);
+  }, [text, speed]);
+  return displayed;
+}
+
+// ---------------------------------------------------------------------------
+// Socratic modal component
+// ---------------------------------------------------------------------------
+
+interface SocraticModalProps {
+  socraticState: SocraticPhase;
+  onSubmitAnswer: (answer: string) => void;
+  onContinue: () => void;
+  onSkip: () => void;
+}
+
+function SocraticModal({ socraticState, onSubmitAnswer, onContinue, onSkip }: SocraticModalProps) {
+  const [answer, setAnswer] = useState('');
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const question =
+    socraticState.phase === 'answering' ||
+    socraticState.phase === 'evaluating' ||
+    socraticState.phase === 'result'
+      ? socraticState.data.question
+      : '';
+
+  const revealedQuestion = useTypewriter(question, 18);
+
+  // Reset answer field each time we enter the answering phase
+  useEffect(() => {
+    if (socraticState.phase === 'answering') {
+      setAnswer('');
+      // Small delay to let the modal animate in first
+      setTimeout(() => textareaRef.current?.focus(), 120);
+    }
+  }, [socraticState.phase]);
+
+  const handleSubmit = () => {
+    const trimmed = answer.trim();
+    if (!trimmed || socraticState.phase !== 'answering') return;
+    onSubmitAnswer(trimmed);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      handleSubmit();
+    }
+  };
+
+  const verdictColors: Record<Verdict, string> = {
+    correct: 'rgba(127, 217, 127, 0.9)',   // chalk green
+    partial:  'rgba(255, 224, 102, 0.9)',  // chalk yellow
+    wrong:   'rgba(255, 127, 127, 0.9)',   // chalk red
+  };
+
+  const verdictLabels: Record<Verdict, string> = {
+    correct: 'Nice thinking!',
+    partial:  'Warm, but not quite.',
+    wrong:   'Not quite — here is the key idea.',
+  };
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 50,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'rgba(8, 10, 18, 0.82)',
+        backdropFilter: 'blur(6px)',
+        WebkitBackdropFilter: 'blur(6px)',
+        padding: '16px',
+      }}
+    >
+      <div
+        style={{
+          width: '100%',
+          maxWidth: 520,
+          background: 'rgba(22, 24, 32, 0.97)',
+          border: '1px solid rgba(245,240,232,0.12)',
+          borderRadius: 16,
+          padding: '32px 28px 28px',
+          boxShadow: '0 8px 40px rgba(0,0,0,0.6)',
+          position: 'relative',
+        }}
+      >
+        {/* Header pill */}
+        <div
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            background: 'rgba(107, 191, 255, 0.12)',
+            border: '1px solid rgba(107, 191, 255, 0.22)',
+            borderRadius: 20,
+            padding: '3px 12px',
+            marginBottom: 20,
+          }}
+        >
+          <span
+            style={{
+              width: 7,
+              height: 7,
+              borderRadius: '50%',
+              background: 'rgba(107, 191, 255, 0.8)',
+              display: 'inline-block',
+              flexShrink: 0,
+            }}
+          />
+          <span
+            style={{
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 11,
+              letterSpacing: '0.12em',
+              textTransform: 'uppercase',
+              color: 'rgba(107, 191, 255, 0.8)',
+              fontWeight: 500,
+            }}
+          >
+            Socratic moment
+          </span>
+        </div>
+
+        {/* Loading state (fetching question) */}
+        {socraticState.phase === 'asking' && (
+          <div style={{ textAlign: 'center', padding: '24px 0' }}>
+            <LoadingDots />
+            <p
+              style={{
+                fontFamily: "'Caveat', cursive",
+                fontSize: 20,
+                color: 'rgba(245,240,232,0.55)',
+                marginTop: 16,
+              }}
+            >
+              Thinking of a question…
+            </p>
+          </div>
+        )}
+
+        {/* Question + answer phase */}
+        {(socraticState.phase === 'answering' || socraticState.phase === 'evaluating') && (
+          <>
+            <p
+              style={{
+                fontFamily: "'Caveat', cursive",
+                fontSize: 26,
+                color: 'rgba(245,240,232,0.92)',
+                lineHeight: 1.4,
+                marginBottom: 24,
+                minHeight: 72,
+              }}
+            >
+              {revealedQuestion}
+              {revealedQuestion.length < question.length && (
+                <span
+                  style={{
+                    display: 'inline-block',
+                    width: 2,
+                    height: '1em',
+                    background: 'rgba(245,240,232,0.6)',
+                    marginLeft: 3,
+                    verticalAlign: 'text-bottom',
+                    animation: 'socratic-blink 0.9s step-end infinite',
+                  }}
+                />
+              )}
+            </p>
+            <textarea
+              ref={textareaRef}
+              value={answer}
+              onChange={(e) => setAnswer(e.target.value)}
+              onKeyDown={handleKeyDown}
+              disabled={socraticState.phase === 'evaluating'}
+              placeholder="Share your intuition…"
+              rows={3}
+              style={{
+                width: '100%',
+                background: 'rgba(245,240,232,0.05)',
+                border: '1px solid rgba(245,240,232,0.14)',
+                borderRadius: 10,
+                padding: '12px 14px',
+                fontFamily: "'Caveat', cursive",
+                fontSize: 20,
+                color: 'rgba(245,240,232,0.88)',
+                resize: 'none',
+                outline: 'none',
+                lineHeight: 1.5,
+                marginBottom: 16,
+                transition: 'border-color 0.2s',
+              }}
+              onFocus={(e) => {
+                (e.target as HTMLTextAreaElement).style.borderColor = 'rgba(107,191,255,0.4)';
+              }}
+              onBlur={(e) => {
+                (e.target as HTMLTextAreaElement).style.borderColor = 'rgba(245,240,232,0.14)';
+              }}
+            />
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                onClick={onSkip}
+                disabled={socraticState.phase === 'evaluating'}
+                style={{
+                  fontFamily: "'Inter', sans-serif",
+                  fontSize: 13,
+                  color: 'rgba(245,240,232,0.38)',
+                  background: 'transparent',
+                  border: 'none',
+                  cursor: socraticState.phase === 'evaluating' ? 'not-allowed' : 'pointer',
+                  padding: '8px 12px',
+                  letterSpacing: '0.03em',
+                }}
+              >
+                Skip
+              </button>
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={!answer.trim() || socraticState.phase === 'evaluating'}
+                style={{
+                  fontFamily: "'Inter', sans-serif",
+                  fontSize: 13,
+                  fontWeight: 500,
+                  color: answer.trim() && socraticState.phase === 'answering'
+                    ? 'rgba(245,240,232,0.9)'
+                    : 'rgba(245,240,232,0.3)',
+                  background: answer.trim() && socraticState.phase === 'answering'
+                    ? 'rgba(107,191,255,0.15)'
+                    : 'rgba(245,240,232,0.05)',
+                  border: '1px solid',
+                  borderColor: answer.trim() && socraticState.phase === 'answering'
+                    ? 'rgba(107,191,255,0.3)'
+                    : 'rgba(245,240,232,0.1)',
+                  borderRadius: 8,
+                  padding: '8px 18px',
+                  cursor: !answer.trim() || socraticState.phase === 'evaluating'
+                    ? 'not-allowed'
+                    : 'pointer',
+                  transition: 'all 0.2s',
+                }}
+              >
+                {socraticState.phase === 'evaluating' ? 'Checking…' : 'Submit ↵'}
+              </button>
+            </div>
+            <p
+              style={{
+                fontFamily: "'Inter', sans-serif",
+                fontSize: 11,
+                color: 'rgba(245,240,232,0.22)',
+                textAlign: 'right',
+                marginTop: 8,
+                letterSpacing: '0.04em',
+              }}
+            >
+              ⌘ + Enter to submit
+            </p>
+          </>
+        )}
+
+        {/* Result phase */}
+        {socraticState.phase === 'result' && (
+          <>
+            <p
+              style={{
+                fontFamily: "'Caveat', cursive",
+                fontSize: 24,
+                color: 'rgba(245,240,232,0.78)',
+                lineHeight: 1.4,
+                marginBottom: 18,
+              }}
+            >
+              {socraticState.data.question}
+            </p>
+
+            {/* User's answer, quoted */}
+            <blockquote
+              style={{
+                fontFamily: "'Caveat', cursive",
+                fontSize: 18,
+                color: 'rgba(245,240,232,0.5)',
+                borderLeft: '2px solid rgba(245,240,232,0.15)',
+                paddingLeft: 12,
+                marginBottom: 20,
+                fontStyle: 'normal',
+              }}
+            >
+              {socraticState.answer}
+            </blockquote>
+
+            {/* Verdict badge */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 12,
+                marginBottom: 24,
+                background: 'rgba(245,240,232,0.03)',
+                border: `1px solid ${verdictColors[socraticState.evaluation.verdict]}`,
+                borderRadius: 10,
+                padding: '14px 16px',
+              }}
+            >
+              <span
+                style={{
+                  fontFamily: "'Caveat', cursive",
+                  fontSize: 16,
+                  fontWeight: 700,
+                  color: verdictColors[socraticState.evaluation.verdict],
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0,
+                  paddingTop: 1,
+                }}
+              >
+                {verdictLabels[socraticState.evaluation.verdict]}
+              </span>
+              <span
+                style={{
+                  fontFamily: "'Caveat', cursive",
+                  fontSize: 20,
+                  color: 'rgba(245,240,232,0.85)',
+                  lineHeight: 1.4,
+                }}
+              >
+                {socraticState.evaluation.feedback}
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              {!socraticState.evaluation.suggestProceed && (
+                <button
+                  type="button"
+                  onClick={onSkip}
+                  style={{
+                    fontFamily: "'Inter', sans-serif",
+                    fontSize: 13,
+                    color: 'rgba(245,240,232,0.45)',
+                    background: 'transparent',
+                    border: '1px solid rgba(245,240,232,0.12)',
+                    borderRadius: 8,
+                    cursor: 'pointer',
+                    padding: '8px 14px',
+                    letterSpacing: '0.03em',
+                  }}
+                >
+                  Show me anyway →
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={onContinue}
+                style={{
+                  fontFamily: "'Inter', sans-serif",
+                  fontSize: 13,
+                  fontWeight: 500,
+                  color: 'rgba(245,240,232,0.9)',
+                  background: 'rgba(127,217,127,0.12)',
+                  border: '1px solid rgba(127,217,127,0.28)',
+                  borderRadius: 8,
+                  padding: '8px 18px',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                }}
+              >
+                {socraticState.evaluation.suggestProceed ? 'Continue →' : 'Try again'}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Inline animation for cursor blink */}
+      <style>{`
+        @keyframes socratic-blink {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0; }
+        }
+      `}</style>
+    </div>
+  );
 }
 
 /**
@@ -260,6 +685,12 @@ export default function CanvasPage() {
   const [voicesError, setVoicesError] = useState<string | null>(null);
   const voicesFetchedRef = useRef(false);
 
+  // Socratic mode state
+  const [socraticOn, setSocraticOn] = useState(false);
+  const [socraticState, setSocraticState] = useState<SocraticPhase | null>(null);
+  // The "pending next step index" while the modal is open
+  const pendingNextStepRef = useRef<number | null>(null);
+
   const restartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [isRetrying, setIsRetrying] = useState(false);
@@ -268,12 +699,13 @@ export default function CanvasPage() {
   const [retryEnabled, setRetryEnabled] = useState(true);
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Hydrate persisted voice preferences from localStorage after mount (SSR-safe).
+  // Hydrate persisted preferences from localStorage after mount (SSR-safe).
   useEffect(() => {
     try {
       setVoiceOn(localStorage.getItem(VOICE_PREF_KEY) === '1');
       const savedId = localStorage.getItem(VOICE_ID_KEY);
       if (savedId) setVoiceId(savedId);
+      setSocraticOn(localStorage.getItem(SOCRATIC_PREF_KEY) === '1');
     } catch {
       /* ignore storage errors */
     }
@@ -284,6 +716,18 @@ export default function CanvasPage() {
       const next = !prev;
       try {
         localStorage.setItem(VOICE_PREF_KEY, next ? '1' : '0');
+      } catch {
+        /* ignore storage errors */
+      }
+      return next;
+    });
+  }, []);
+
+  const toggleSocratic = useCallback(() => {
+    setSocraticOn((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(SOCRATIC_PREF_KEY, next ? '1' : '0');
       } catch {
         /* ignore storage errors */
       }
@@ -592,6 +1036,8 @@ export default function CanvasPage() {
 
   const handleRestart = useCallback(() => {
     if (!blueprint) return;
+    setSocraticState(null);
+    pendingNextStepRef.current = null;
     canvasRef.current?.reset();
     setCurrentStepIndex(0);
     setCurrentNarration('');
@@ -640,6 +1086,43 @@ export default function CanvasPage() {
     [],
   );
 
+  // Actually advance to the next step (called after socratic completes or when socratic is off)
+  const advanceToNextStep = useCallback(
+    (nextIdx: number, bp: Blueprint) => {
+      setSocraticState(null);
+      pendingNextStepRef.current = null;
+      setCurrentStepIndex(nextIdx);
+      playStep(nextIdx, bp);
+    },
+    [playStep]
+  );
+
+  // Fetch a Socratic question before advancing to nextIdx
+  const triggerSocratic = useCallback(
+    async (currentIdx: number, nextIdx: number, bp: Blueprint) => {
+      pendingNextStepRef.current = nextIdx;
+      setSocraticState({ phase: 'asking' });
+      try {
+        const r = await fetch('/api/socratic', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: 'ask', blueprint: bp, stepIndex: currentIdx }),
+        });
+        if (!r.ok) {
+          const j = (await r.json().catch(() => ({}))) as { error?: string };
+          throw new Error(j.error || `socratic ask ${r.status}`);
+        }
+        const data = (await r.json()) as { question: string; expectedIntuition: string };
+        setSocraticState({ phase: 'answering', data });
+      } catch (err) {
+        console.error('[Visua AI] socratic ask failed:', err);
+        // On failure, skip the modal and advance silently
+        advanceToNextStep(nextIdx, bp);
+      }
+    },
+    [advanceToNextStep]
+  );
+
   const handleNext = useCallback(() => {
     if (!blueprint || isAnimating) return;
     const isLast = currentStepIndex >= blueprint.steps.length - 1;
@@ -650,12 +1133,18 @@ export default function CanvasPage() {
       return;
     }
     const nextIdx = currentStepIndex + 1;
-    setCurrentStepIndex(nextIdx);
-    playStep(nextIdx, blueprint);
-  }, [blueprint, currentStepIndex, isAnimating, playStep, handleHome, generateQuizCards]);
+    // Only show Socratic interstitial when the next step exists (not the last step transition)
+    if (socraticOn) {
+      triggerSocratic(currentStepIndex, nextIdx, blueprint);
+    } else {
+      advanceToNextStep(nextIdx, blueprint);
+    }
+  }, [blueprint, currentStepIndex, isAnimating, socraticOn, triggerSocratic, advanceToNextStep, handleHome, generateQuizCards]);
 
   const handlePrevStep = useCallback(() => {
     if (!blueprint || isAnimating || currentStepIndex <= 0) return;
+    setSocraticState(null);
+    pendingNextStepRef.current = null;
     const prevIdx = currentStepIndex - 1;
     canvasRef.current?.reset();
     setCurrentStepIndex(prevIdx);
@@ -801,6 +1290,70 @@ export default function CanvasPage() {
     requestAnimationFrame(animateEraser);
   }, [blueprint, concept, isRetrying, retryEnabled, playStep]);
 
+  // Handle the learner submitting their answer
+  const handleSocraticSubmit = useCallback(
+    async (answer: string) => {
+      if (!socraticState || socraticState.phase !== 'answering') return;
+      const questionData = socraticState.data;
+      setSocraticState({ phase: 'evaluating', data: questionData, answer });
+      try {
+        const r = await fetch('/api/socratic', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            mode: 'evaluate',
+            question: questionData.question,
+            expectedIntuition: questionData.expectedIntuition,
+            answer,
+          }),
+        });
+        if (!r.ok) {
+          const j = (await r.json().catch(() => ({}))) as { error?: string };
+          throw new Error(j.error || `socratic evaluate ${r.status}`);
+        }
+        const evaluation = (await r.json()) as SocraticEvaluation;
+        setSocraticState({ phase: 'result', data: questionData, evaluation, answer });
+      } catch (err) {
+        console.error('[Visua AI] socratic evaluate failed:', err);
+        // On failure, skip to next step
+        if (blueprint && pendingNextStepRef.current !== null) {
+          advanceToNextStep(pendingNextStepRef.current, blueprint);
+        } else {
+          setSocraticState(null);
+        }
+      }
+    },
+    [socraticState, blueprint, advanceToNextStep]
+  );
+
+  // "Continue" or "Try again" button in the result phase
+  const handleSocraticContinue = useCallback(() => {
+    if (!socraticState || socraticState.phase !== 'result' || !blueprint) return;
+    const evaluation = socraticState.evaluation;
+    const data = socraticState.data;
+    const answer = socraticState.answer;
+    if (evaluation.suggestProceed) {
+      // Advance to next step
+      if (pendingNextStepRef.current !== null) {
+        advanceToNextStep(pendingNextStepRef.current, blueprint);
+      }
+    } else {
+      // "Try again" — re-enter answering phase with the same question
+      setSocraticState({ phase: 'answering', data });
+      // Suppress TypeScript unused warning
+      void answer;
+    }
+  }, [socraticState, blueprint, advanceToNextStep]);
+
+  // "Skip" / "Show me anyway" — dismiss modal and proceed
+  const handleSocraticSkip = useCallback(() => {
+    if (!blueprint || pendingNextStepRef.current === null) {
+      setSocraticState(null);
+      return;
+    }
+    advanceToNextStep(pendingNextStepRef.current, blueprint);
+  }, [blueprint, advanceToNextStep]);
+
   const [isFollowUpPending, setIsFollowUpPending] = useState(false);
   const [followUpError, setFollowUpError] = useState<string | null>(null);
 
@@ -911,6 +1464,11 @@ export default function CanvasPage() {
         tag === 'INPUT' || tag === 'TEXTAREA' || target?.isContentEditable === true;
 
       if (e.key === 'Escape') {
+        // If socratic modal is open, skip it instead of going home
+        if (socraticState) {
+          handleSocraticSkip();
+          return;
+        }
         handleHome();
         return;
       }
@@ -924,7 +1482,7 @@ export default function CanvasPage() {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [handleHome]);
+  }, [handleHome, socraticState, handleSocraticSkip]);
 
   // ---- CANVAS SIZE ----
   // We want 800x600 logical canvas, scaled to fill screen
@@ -1102,6 +1660,49 @@ export default function CanvasPage() {
             </div>
           </div>
           <div className="relative flex items-center gap-4">
+            {/* Socratic mode toggle */}
+            <button
+              type="button"
+              onClick={toggleSocratic}
+              aria-pressed={socraticOn}
+              title={socraticOn ? 'Disable Socratic mode' : 'Enable Socratic mode — AI asks you questions between steps'}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                background: socraticOn ? 'rgba(107,191,255,0.15)' : 'rgba(245,240,232,0.05)',
+                color: socraticOn ? 'rgba(107,191,255,0.9)' : 'rgba(245,240,232,0.42)',
+                border: `1px solid ${socraticOn ? 'rgba(107,191,255,0.3)' : 'rgba(245,240,232,0.12)'}`,
+                borderRadius: 8,
+                padding: '5px 12px',
+                fontFamily: "'Inter', sans-serif",
+                fontWeight: 400,
+                fontSize: 13,
+                letterSpacing: '0.04em',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+              }}
+            >
+              {/* Simple brain-ish icon */}
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden
+              >
+                <circle cx="12" cy="12" r="9" />
+                <path d="M9 9 Q12 7 15 9" />
+                <path d="M9 15 Q12 17 15 15" />
+                <line x1="12" y1="8" x2="12" y2="16" />
+              </svg>
+              Socratic
+            </button>
+
             {canShowDesmos && (
               <button
                 onClick={() => setIsDesmosOpen(true)}
@@ -1289,6 +1890,16 @@ export default function CanvasPage() {
             ×
           </button>
         </div>
+      )}
+
+      {/* Socratic interstitial modal */}
+      {socraticState && (
+        <SocraticModal
+          socraticState={socraticState}
+          onSubmitAnswer={handleSocraticSubmit}
+          onContinue={handleSocraticContinue}
+          onSkip={handleSocraticSkip}
+        />
       )}
 
       {/* Subtle noise overlay */}
