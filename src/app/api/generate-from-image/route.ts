@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { Blueprint, Domain, Strategy } from '@/lib/types';
+import { pruneOverlappingText } from '@/lib/blueprintPruning';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -148,6 +149,7 @@ function validateBlueprint(value: unknown): Blueprint {
     }
     if (!Array.isArray(step.drawings)) throw new Error(`Step ${i + 1} drawings must be an array`);
   }
+  pruneOverlappingText(value as Blueprint);
   return value as Blueprint;
 }
 

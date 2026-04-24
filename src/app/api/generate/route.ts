@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { FIXTURES, MATH_FIXTURES, BIO_FIXTURES, CS_FIXTURES } from '@/lib/fixtures';
 import { Blueprint, Domain, Persona, Strategy, DifficultyLevel } from '@/lib/types';
+import { pruneOverlappingText } from '@/lib/blueprintPruning';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -432,8 +433,16 @@ export function validateBlueprint(value: unknown): Blueprint {
       bp.desmosExpressions = haveAllFreeVariablesBound(perEntryValid) ? perEntryValid : [];
     }
   }
+  // Last-mile overlap pruning: the prompt's spatial-discipline rules don't
+  // always stick, so walk every text primitive in order and drop ones whose
+  // bounding box intersects an earlier kept label (or is a duplicate). The
+  // model's intent is preserved up to the first collision — later attempts
+  // to restate the same label in a different spot get dropped. See
+  // pruneOverlappingText below for the exact rule.
+  pruneOverlappingText(value as Blueprint);
   return value as Blueprint;
 }
+
 
 /**
  * Conservative Desmos-LaTeX compatibility check. Rejects strings known to
