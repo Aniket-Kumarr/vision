@@ -50,13 +50,17 @@ export async function GET() {
   }
 
   const data = (await upstream.json()) as ElevenLabsVoicesResponse;
-  const voices: PublicVoice[] = (data.voices ?? []).map((v) => ({
-    id: v.voice_id,
-    name: v.name,
-    category: v.category,
-    description: v.labels ? Object.values(v.labels).join(' · ') : undefined,
-    preview_url: v.preview_url,
-  }));
+  const voices: PublicVoice[] = (data.voices ?? [])
+    // Drop professionally-cloned voices — the user's library currently has
+    // these and they clutter the picker. Premade + personal-cloned stay.
+    .filter((v) => (v.category ?? '').toLowerCase() !== 'professional')
+    .map((v) => ({
+      id: v.voice_id,
+      name: v.name,
+      category: v.category,
+      description: v.labels ? Object.values(v.labels).join(' · ') : undefined,
+      preview_url: v.preview_url,
+    }));
 
   const payload = { voices };
   voicesCache = { at: Date.now(), payload };

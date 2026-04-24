@@ -2094,13 +2094,13 @@ canvas {
 .welcome-card-biology {
   background:
     linear-gradient(135deg, rgba(120, 200, 120, 0.18) 0%, rgba(150, 230, 170, 0.22) 100%),
-    #cffdbc;
+    #cfffcf;
 }
 
 .welcome-card-cs {
   background:
     linear-gradient(135deg, rgba(120, 200, 230, 0.18) 0%, rgba(150, 210, 255, 0.22) 100%),
-    #bef0ff;
+    #ECFFFF;
 }
 
 .welcome-card-noise {
@@ -3426,14 +3426,14 @@ canvas {
 /* --------------------------------------------------------------------------
  * Per-subject page themes
  * --------------------------------------------------------------------------
- * Biology → leaf green (#cffdbc). CS → sky blue (#bef0ff). Physics → violet.
+ * Biology → leaf green (#cfffcf). CS → sky blue (#ECFFFF). Physics → violet.
  * Math keeps the warm cream chalkboard-lecture default.
  *
  * Applied to the outer .chat-session-page wrapper on /chat. The canvas
  * drawing surface stays black — chalk needs dark to show up.
  * -------------------------------------------------------------------------- */
 .chat-session-page.subject-biology {
-  background-color: #cffdbc;
+  background-color: #cfffcf;
   background-image:
     radial-gradient(100% 70% at 10% -10%, rgba(60, 160, 90, 0.18), transparent 52%),
     radial-gradient(80% 55% at 95% 0%, rgba(40, 140, 100, 0.14), transparent 48%),
@@ -3459,7 +3459,7 @@ canvas {
 }
 
 .chat-session-page.subject-cs {
-  background-color: #bef0ff;
+  background-color: #ECFFFF;
   background-image:
     radial-gradient(100% 70% at 10% -10%, rgba(60, 130, 200, 0.16), transparent 52%),
     radial-gradient(80% 55% at 95% 0%, rgba(80, 160, 220, 0.14), transparent 48%),
@@ -3500,8 +3500,8 @@ canvas {
 
 /* --- Body / HTML backdrop follows the subject too, so edges past the
    .chat-session-page min-height blend rather than hitting raw --chalkboard. */
-body[data-subject='biology'] { background: #cffdbc; }
-body[data-subject='cs'] { background: #bef0ff; }
+body[data-subject='biology'] { background: #cfffcf; }
+body[data-subject='cs'] { background: #ECFFFF; }
 body[data-subject='physics'] { background: #f0e8ff; }
 
 /* --------------------------------------------------------------------------

@@ -126,9 +126,30 @@ Critical rules:
 - For axes: place them so content fits on screen (cx/cy is the origin, xRange/yRange is how far each direction)
 
 DESMOS LATEX RULES (for the desmosExpressions array — optional, up to 6 items):
-When the lesson involves a plottable function, conic, or identity, emit 1–6 Desmos-compatible LaTeX
-strings in \`desmosExpressions\`. If the concept is not graphable (proofs about integers,
-discrete algorithms, abstract categorical ideas), OMIT the field.
+
+DEFAULT IS OMIT. Only emit \`desmosExpressions\` when the concept produces a literal picture
+when plotted on a 2D Cartesian graph — a curve, a conic, a point cloud, a parametric motion.
+If the concept is a proof, an algorithm, a scaling relationship, a process diagram, a cycle,
+a data structure, a molecule, a circuit, a biological pathway, or any symbolic formula where
+the variables are *labels* rather than *coordinates*, OMIT THE FIELD ENTIRELY. A blank Desmos
+panel is infinitely better than 6 undefined-variable warnings.
+
+EXAMPLES OF WHEN TO OMIT (do not emit desmosExpressions for these):
+- Parallel computing: T=S/R, S=W·H·B — these are rate formulas, not plottable curves
+- Binary search, BFS, quicksort — algorithms, not graphs
+- Krebs cycle, DNA replication — biology processes, not curves
+- "Derivative rules", "limit definition" — the IDEAS are not graphs, though specific curves are
+- Any formula with \`≈\`, "proportional to", or abstract symbols like entropy \`H\`, complexity \`O(n)\`
+
+WHEN YOU DO EMIT, EVERY FREE VARIABLE EXCEPT x, y, t MUST HAVE A CONCRETE NUMERIC VALUE.
+Desmos shows an orange triangle warning for every variable it doesn't have a value for. So if
+your equation is \`y=A\\sin(Bx+C)+D\`, you MUST also emit \`A=1\`, \`B=1\`, \`C=0\`, \`D=0\` on
+separate array entries. Never leave \`a\`, \`b\`, \`c\`, \`v_{0}\`, \`g\`, \`\\omega\`, \`\\theta\`,
+or any other symbolic letter hanging — Desmos will flag all of them and the panel will be
+six orange warning triangles (this happens constantly and must stop).
+
+The FIRST entry should be the main curve (y=..., f(x)=..., or a conic like x^2+y^2=r^2).
+Subsequent entries fill in concrete values for every variable used in the first entry.
 
 ALLOWED in Desmos LaTeX:
 - Variables: single letters \`x y t a b c n\`; multi-char names must be wrapped in a subscript (\`a_{0}\`).
@@ -304,11 +325,16 @@ export function validateBlueprint(value: unknown): Blueprint {
       // Wrong shape — drop the field rather than fail the whole blueprint.
       bp.desmosExpressions = [];
     } else {
-      bp.desmosExpressions = (bp.desmosExpressions as unknown[])
+      const perEntryValid = (bp.desmosExpressions as unknown[])
         .filter((e): e is string => typeof e === 'string')
         .map((e) => e.trim())
         .filter((e) => e.length > 0 && e.length < 200 && isDesmosCompatibleLatex(e))
         .slice(0, 6);
+      // Batch-level check: if any free variable in the set has no numeric
+      // binding elsewhere in the array, drop the whole batch. Desmos flags
+      // every undefined variable with an orange triangle and the panel
+      // becomes useless. Better to show topic seeds than a wall of warnings.
+      bp.desmosExpressions = haveAllFreeVariablesBound(perEntryValid) ? perEntryValid : [];
     }
   }
   return value as Blueprint;
@@ -331,6 +357,65 @@ function isDesmosCompatibleLatex(s: string): boolean {
   const looksLikePoint = /^\s*\(.+,.+\)\s*$/.test(s);
   const looksLikeList = /^\s*\[.+\]\s*$/.test(s);
   if (!hasRelation && !looksLikePoint && !looksLikeList) return false;
+  return true;
+}
+
+/**
+ * Variables Desmos treats as free plot axes — don't require bindings for these.
+ * Everything else used in an expression must appear as the LHS of a `var = <literal>`
+ * binding somewhere in the same array, or the whole array is scrapped.
+ */
+const DESMOS_FREE_AXES = new Set(['x', 'y', 't', 'r', '\\theta']);
+
+function extractIdentifiers(latex: string): Set<string> {
+  const ids = new Set<string>();
+  // Subscripted identifiers: T_{total}, v_{0}, a_{i}, etc.
+  const subRe = /([A-Za-z]|\\[a-zA-Z]+)_\{([^}]+)\}/g;
+  let m: RegExpExecArray | null;
+  let stripped = latex;
+  while ((m = subRe.exec(latex)) !== null) {
+    ids.add(`${m[1]}_{${m[2]}}`);
+  }
+  stripped = stripped.replace(subRe, ''); // remove to avoid double-counting the leading letter
+  // Greek-letter macros.
+  const greekRe = /\\(alpha|beta|gamma|delta|epsilon|zeta|eta|theta|iota|kappa|lambda|mu|nu|xi|pi|rho|sigma|tau|upsilon|phi|chi|psi|omega|Gamma|Delta|Theta|Lambda|Xi|Pi|Sigma|Upsilon|Phi|Psi|Omega)\b/g;
+  while ((m = greekRe.exec(stripped)) !== null) ids.add(`\\${m[1]}`);
+  stripped = stripped.replace(greekRe, '');
+  // Strip LaTeX command names (e.g. \sin, \cos, \frac) — they're functions, not variables.
+  stripped = stripped.replace(/\\[a-zA-Z]+/g, '');
+  // Remaining single letters are identifiers.
+  const letterRe = /[A-Za-z]/g;
+  while ((m = letterRe.exec(stripped)) !== null) ids.add(m[0]);
+  return ids;
+}
+
+/**
+ * Returns true when every free variable used anywhere in the expressions is
+ * either a free axis (x, y, t, r, theta) or has a `var = <literal>` binding
+ * elsewhere in the array. Conservative — false positives rarely matter since
+ * Desmos falls back to the topic-seed mining path.
+ */
+function haveAllFreeVariablesBound(exprs: string[]): boolean {
+  if (exprs.length === 0) return true;
+  // Collect bindings: entries of the form `identifier = <numeric or simple literal>`.
+  const bindings = new Set<string>();
+  const bindingRe = /^\s*(\\?[A-Za-z]+(?:_\{[^}]+\})?)\s*=\s*(-?\d|\\frac|\\pi|\\sqrt)/;
+  for (const e of exprs) {
+    const m = bindingRe.exec(e);
+    if (m) bindings.add(m[1]);
+  }
+  // Every other identifier must be either a free axis or bound.
+  for (const e of exprs) {
+    for (const id of extractIdentifiers(e)) {
+      if (DESMOS_FREE_AXES.has(id)) continue;
+      if (bindings.has(id)) continue;
+      // Function-definition LHS like `f(x)` — single-letter function names
+      // followed by `(` should not be treated as unbound variables.
+      const isFunctionName = new RegExp(`\\b${id.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')}\\s*\\(`).test(e);
+      if (isFunctionName) continue;
+      return false;
+    }
+  }
   return true;
 }
 

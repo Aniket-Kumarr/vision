@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { getCurrentStreak } from '@/lib/lessonHistory';
 
 interface StreakBadgeProps {
@@ -9,7 +8,6 @@ interface StreakBadgeProps {
 }
 
 export default function StreakBadge({ className = '' }: StreakBadgeProps) {
-  const router = useRouter();
   const [streak, setStreak] = useState(0);
   const [hydrated, setHydrated] = useState(false);
 
@@ -25,15 +23,14 @@ export default function StreakBadge({ className = '' }: StreakBadgeProps) {
 
   if (!hydrated || streak === 0) return null;
 
+  // Purely a notification indicator — no click, no navigation. Renders as a
+  // non-interactive div so it can't steal focus or pointer events from the
+  // page underneath.
   return (
-    <button
-      type="button"
-      onClick={() => router.push('/history')}
+    <div
       className={className}
-      title="View your lesson history and streak"
-      // Floats at bottom-left regardless of where the parent mounts it — the
-      // old inline placement in the top nav was cramped. Keep it subtle and
-      // out of the main reading flow.
+      role="status"
+      aria-label={`Current streak: ${streak} day${streak === 1 ? '' : 's'}`}
       style={{
         position: 'fixed',
         bottom: '16px',
@@ -52,21 +49,13 @@ export default function StreakBadge({ className = '' }: StreakBadgeProps) {
         fontFamily: "'Inter', sans-serif",
         fontSize: '13px',
         fontWeight: 600,
-        cursor: 'pointer',
-        transition: 'all 0.2s ease',
+        pointerEvents: 'none',
+        userSelect: 'none',
         boxShadow: '0 4px 14px rgba(0,0,0,0.25)',
-      }}
-      onMouseEnter={(e) => {
-        (e.currentTarget as HTMLElement).style.background = 'rgba(20,22,28,0.9)';
-        (e.currentTarget as HTMLElement).style.borderColor = 'rgba(245,240,232,0.4)';
-      }}
-      onMouseLeave={(e) => {
-        (e.currentTarget as HTMLElement).style.background = 'rgba(20,22,28,0.72)';
-        (e.currentTarget as HTMLElement).style.borderColor = 'rgba(245,240,232,0.22)';
       }}
     >
       <span style={{ fontSize: '18px' }}>🔥</span>
       <span>{streak}</span>
-    </button>
+    </div>
   );
 }
