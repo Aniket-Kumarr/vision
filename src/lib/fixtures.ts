@@ -4,6 +4,7 @@ export { BIO_FIXTURES } from './bioFixtures';
 import { CHEM_FIXTURES } from './chemFixtures';
 import { BIO_FIXTURES } from './bioFixtures';
 import { CIRCLE_OF_FIFTHS, MAJOR_SCALE, CHORD_TRIAD } from './musicFixtures';
+import { CS_FIXTURES } from './csFixtures';
 
 export const PYTHAGOREAN_THEOREM: Blueprint = {
   title: 'Pythagorean Theorem',
@@ -502,9 +503,12 @@ export const MUSIC_FIXTURES: Record<string, Blueprint> = {
   'triad': CHORD_TRIAD,
 };
 
+export { CS_FIXTURES };
+
 export const FIXTURES: Record<string, Blueprint> = {
   ...MATH_FIXTURES,
   ...CHEM_FIXTURES,
   ...BIO_FIXTURES,
   ...MUSIC_FIXTURES,
+  ...CS_FIXTURES,
 };

@@ -62,6 +62,40 @@ const MUSIC_KEYWORDS: RegExp[] = [
   /\blocrian\b/i,
 ];
 
+const CS_KEYWORDS: RegExp[] = [
+  /\bsorting algorithm/i,
+  /\bbubble sort\b/i,
+  /\bquicksort\b/i,
+  /\bmerge sort\b/i,
+  /\binsertion sort\b/i,
+  /\bselection sort\b/i,
+  /\bheap sort\b/i,
+  /\bbinary search\b/i,
+  /\blinked list\b/i,
+  /\bbinary tree\b/i,
+  /\bBFS\b/,
+  /\bDFS\b/,
+  /\bbreadth.first\b/i,
+  /\bdepth.first\b/i,
+  /\bgraph traversal\b/i,
+  /\bhash (table|map|collision)\b/i,
+  /\brecursion tree\b/i,
+  /\bdynamic programming\b/i,
+  /\bbig.?O notation\b/i,
+  /\btime complexity\b/i,
+  /\bspace complexity\b/i,
+  /\bstack (overflow|data structure)\b/i,
+  /\bqueue data structure\b/i,
+  /\bred.black tree\b/i,
+  /\bavl tree\b/i,
+  /\btrie\b/i,
+  /\bheap data structure\b/i,
+  /\bdijkstra\b/i,
+  /\btopological sort\b/i,
+  /\bpointer (arithmetic|chasing)\b/i,
+  /\bmemoization\b/i,
+];
+
 const PHYSICS_KEYWORDS: RegExp[] = [
   /\bfree[- ]?body\b/i,
   /\bprojectile\b/i,
@@ -92,7 +126,7 @@ const PHYSICS_KEYWORDS: RegExp[] = [
   /\blongitudinal wave/i,
 ];
 
-export type Subject = 'math' | 'physics' | 'chemistry' | 'biology' | 'music';
+export type Subject = 'math' | 'physics' | 'chemistry' | 'biology' | 'music' | 'cs';
 
 export interface SubjectScopeResult {
   likelySubject: Subject | null;
@@ -151,8 +185,9 @@ export function detectSubjectScope(input: string, current: Subject): SubjectScop
   const isChemistry = CHEMISTRY_KEYWORDS.some((re) => re.test(text));
   const isBiology = BIOLOGY_KEYWORDS.some((re) => re.test(text));
   const isMusic = MUSIC_KEYWORDS.some((re) => re.test(text));
+  const isCs = CS_KEYWORDS.some((re) => re.test(text));
 
-  const matches = [isMath, isPhysics, isChemistry, isBiology, isMusic].filter(Boolean).length;
+  const matches = [isMath, isPhysics, isChemistry, isBiology, isMusic, isCs].filter(Boolean).length;
   // Ambiguous (matches multiple) or none — don't flag.
   if (matches !== 1) return { likelySubject: null, mismatch: false };
 
@@ -164,6 +199,8 @@ export function detectSubjectScope(input: string, current: Subject): SubjectScop
         ? 'chemistry'
         : isBiology
           ? 'biology'
-          : 'music';
+          : isMusic
+            ? 'music'
+            : 'cs';
   return { likelySubject, mismatch: likelySubject !== current };
 }

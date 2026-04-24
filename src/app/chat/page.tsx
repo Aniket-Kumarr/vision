@@ -45,9 +45,15 @@ import {
   displayMusicTopicForUserConcept,
   musicPromptForUserConcept,
 } from '@/lib/musicPrompts';
+import {
+  CS_SUGGESTION_CHIPS,
+  CS_SUGGESTION_TO_PROMPT,
+  displayCsTopicForUserConcept,
+  csPromptForUserConcept,
+} from '@/lib/csPrompts';
 import { detectSubjectScope } from '@/lib/subjectScope';
 
-type Subject = 'math' | 'physics' | 'chemistry' | 'biology' | 'music';
+type Subject = 'math' | 'physics' | 'chemistry' | 'biology' | 'music' | 'cs';
 import {
   type LessonHistoryItem,
   clearLessons,
@@ -164,6 +170,13 @@ const LILAC_CHALK_DUST: [number, number, number][] = [
   [150, 120, 200], // soft purple
   [90, 100, 170],  // indigo-blue
   [180, 160, 220], // light lavender
+];
+
+const GREEN_CHALK_DUST: [number, number, number][] = [
+  [40, 140, 80],   // deep green
+  [60, 180, 120],  // medium green
+  [30, 110, 140],  // teal
+  [100, 200, 160], // light cyan-green
 ];
 
 function Typewriter({ text, startDelayMs = 0, charMs = 18 }: { text: string; startDelayMs?: number; charMs?: number }) {
@@ -286,10 +299,10 @@ function ChatPageInner() {
 
   const subject: Subject = useMemo(() => {
     const q = searchParams.get('subject');
-    if (q === 'math' || q === 'physics' || q === 'chemistry' || q === 'biology' || q === 'music') return q;
+    if (q === 'math' || q === 'physics' || q === 'chemistry' || q === 'biology' || q === 'music' || q === 'cs') return q;
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem(VISUA_AI_SUBJECT_KEY);
-      if (stored === 'math' || stored === 'physics' || stored === 'chemistry' || stored === 'biology' || stored === 'music') return stored as Subject;
+      if (stored === 'math' || stored === 'physics' || stored === 'chemistry' || stored === 'biology' || stored === 'music' || stored === 'cs') return stored as Subject;
     }
     return 'math';
   }, [searchParams]);
@@ -311,7 +324,9 @@ function ChatPageInner() {
           ? BIOLOGY_SUGGESTION_CHIPS
           : subject === 'music'
             ? MUSIC_SUGGESTION_CHIPS
-            : SUGGESTION_CHIPS;
+            : subject === 'cs'
+              ? CS_SUGGESTION_CHIPS
+              : SUGGESTION_CHIPS;
   const promptMap: Record<string, string> =
     subject === 'physics'
       ? PHYSICS_SUGGESTION_TO_PROMPT
@@ -321,7 +336,9 @@ function ChatPageInner() {
           ? BIOLOGY_SUGGESTION_TO_PROMPT
           : subject === 'music'
             ? MUSIC_SUGGESTION_TO_PROMPT
-            : SUGGESTION_TO_PROMPT;
+            : subject === 'cs'
+              ? CS_SUGGESTION_TO_PROMPT
+              : SUGGESTION_TO_PROMPT;
   const genericPrompt =
     subject === 'physics'
       ? physicsPromptForUserConcept
@@ -331,7 +348,9 @@ function ChatPageInner() {
           ? biologyPromptForUserConcept
           : subject === 'music'
             ? musicPromptForUserConcept
-            : promptForUserConcept;
+            : subject === 'cs'
+              ? csPromptForUserConcept
+              : promptForUserConcept;
   const displayTopic =
     subject === 'physics'
       ? displayPhysicsTopicForUserConcept
@@ -341,7 +360,9 @@ function ChatPageInner() {
           ? displayBiologyTopicForUserConcept
           : subject === 'music'
             ? displayMusicTopicForUserConcept
-            : displayTopicForUserConcept;
+            : subject === 'cs'
+              ? displayCsTopicForUserConcept
+              : displayTopicForUserConcept;
 
   const firstName = useMemo(() => {
     if (!user?.name) return 'there';
@@ -458,7 +479,13 @@ function ChatPageInner() {
       {/* Ambient warm chalk dust drifting up — subtle, low count */}
       <ChalkParticles
         count={22}
-        colors={subject === 'physics' || subject === 'chemistry' ? LILAC_CHALK_DUST : WARM_CHALK_DUST}
+        colors={
+          subject === 'physics' || subject === 'chemistry'
+            ? LILAC_CHALK_DUST
+            : subject === 'cs'
+              ? GREEN_CHALK_DUST
+              : WARM_CHALK_DUST
+        }
         className="chat-ambient"
       />
 
@@ -487,7 +514,9 @@ function ChatPageInner() {
                   ? 'Biology'
                   : subject === 'music'
                     ? 'Music'
-                    : 'Math'}
+                    : subject === 'cs'
+                      ? 'CS'
+                      : 'Math'}
           </span>
         </div>
         <div className="chat-session-nav-right">
@@ -568,7 +597,9 @@ function ChatPageInner() {
                           ? "I'm ready when you are. Ask about any biology topic — action potentials, the Krebs cycle, Punnett squares, or something you're stuck on in class."
                           : subject === 'music'
                             ? "I'm ready when you are. Ask about any music theory topic — circle of fifths, chord voicings, scales, modes, or something you're stuck on."
-                            : "I'm ready when you are. Ask about any topic — unit circle, derivatives, area puzzles, or something you're stuck on in class."
+                            : subject === 'cs'
+                              ? "I'm ready when you are. Ask about any algorithm or data structure — bubble sort, BFS, recursion trees, hash tables, binary search, or anything you want to visualize."
+                              : "I'm ready when you are. Ask about any topic — unit circle, derivatives, area puzzles, or something you're stuck on in class."
                   }
                   startDelayMs={650}
                   charMs={14}
@@ -660,7 +691,9 @@ function ChatPageInner() {
                         ? 'e.g. Walk me through the Krebs cycle'
                         : subject === 'music'
                           ? 'e.g. Explain the circle of fifths visually'
-                          : 'e.g. Explain the unit circle intuitively'
+                          : subject === 'cs'
+                            ? 'e.g. How does quicksort partition an array?'
+                            : 'e.g. Explain the unit circle intuitively'
                 }
                 className="prompt-input"
                 aria-label="Concept input"

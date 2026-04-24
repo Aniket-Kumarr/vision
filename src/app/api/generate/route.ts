@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
-import { FIXTURES, MATH_FIXTURES, CHEM_FIXTURES, BIO_FIXTURES, MUSIC_FIXTURES } from '@/lib/fixtures';
+import { FIXTURES, MATH_FIXTURES, CHEM_FIXTURES, BIO_FIXTURES, MUSIC_FIXTURES, CS_FIXTURES } from '@/lib/fixtures';
 import { Blueprint, Domain, Strategy } from '@/lib/types';
 
 // ---------------------------------------------------------------------------
@@ -20,7 +20,7 @@ const client = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
-export type Subject = 'math' | 'physics' | 'chemistry' | 'biology' | 'music';
+export type Subject = 'math' | 'physics' | 'chemistry' | 'biology' | 'music' | 'cs';
 
 const MATH_INTRO = `You are a mathematical visualization engine for an interactive chalkboard animation app. Your job is to take any math concept and break it down into a step-by-step visual explanation that draws on a black chalkboard with colorful chalk.`;
 
@@ -53,12 +53,34 @@ Use color purposefully: white for staff lines and base structures, yellow for ke
 
 IMPORTANT: Only create music theory lessons. If the topic is not music theory, decline gracefully and suggest the correct subject.`;
 
+const CS_INTRO = `You are a computer science visualization engine for an interactive chalkboard animation app. Your job is to take any CS concept — sorting algorithms, graph traversal, recursion, data structures, hashing — and break it down into a step-by-step visual explanation that draws on a black chalkboard with colorful chalk.
+
+DRAWING CONVENTIONS:
+- Arrays: draw labeled rectangles in a row, one cell per element. Index labels below each cell.
+- Linked lists: draw circles connected left-to-right with arrow primitives. Each circle holds a value.
+- Trees: draw circles connected by lines, level by level top-to-bottom. Root at top center.
+- Graphs: draw circles (nodes) as points spread across the canvas, connect them with line primitives. Edge weights as small text labels near the midpoint.
+- Pointers / indices (low, high, mid, pivot): draw arrow primitives pointing at the relevant cell or node, with a text label beside the arrowhead.
+- Recursion / call stack: draw indented layered rectangles, each labeled with the function call and its arguments.
+
+COLOR ENCODING (strict — always follow):
+- white: base structures, outlines, unvisited nodes, unprocessed array cells
+- yellow: currently active element (the item being compared, the node being dequeued)
+- green: confirmed sorted / visited / finalized element
+- red: pivot element, swap arrows, the element causing a violation
+- blue: secondary pointers (low pointer, left child, queue items waiting)
+- orange: variables, unknowns, index labels
+- cyan: queue contents, auxiliary structures
+
+Each step narration must explain the algorithmic intuition — WHY the algorithm makes this choice, not just WHAT it does. Think like a brilliant CS professor: connect the local action to the global invariant the algorithm maintains.`;
+
 export function buildSystemPrompt(subject: Subject): string {
   let intro: string;
   if (subject === 'physics') intro = PHYSICS_INTRO;
   else if (subject === 'chemistry') intro = CHEMISTRY_INTRO;
   else if (subject === 'biology') intro = BIOLOGY_INTRO;
   else if (subject === 'music') intro = MUSIC_INTRO;
+  else if (subject === 'cs') intro = CS_INTRO;
   else intro = MATH_INTRO;
   return `${intro}
 
@@ -156,6 +178,7 @@ const SUBJECT_FIXTURE_BANKS: Record<Subject, Record<string, Blueprint>> = {
   chemistry: CHEM_FIXTURES,
   biology: BIO_FIXTURES,
   music: MUSIC_FIXTURES,
+  cs: CS_FIXTURES,
 };
 
 function findFixtureForSubject(concept: string, subject: Subject): Blueprint | null {
@@ -285,7 +308,9 @@ export async function POST(req: NextRequest) {
             ? 'biology'
             : subjectRaw === 'music'
               ? 'music'
-              : 'math';
+              : subjectRaw === 'cs'
+                ? 'cs'
+                : 'math';
 
     // Optional: force fixtures only (no API), useful for offline demos.
     // Set VISUA_AI_USE_FIXTURES_ONLY=1 in .env.local

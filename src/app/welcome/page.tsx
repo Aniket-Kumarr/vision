@@ -31,7 +31,7 @@ const fadeUp = {
   }),
 };
 
-type Subject = 'math' | 'physics' | 'chemistry' | 'biology' | 'music';
+type Subject = 'math' | 'physics' | 'chemistry' | 'biology' | 'music' | 'cs';
 
 export default function WelcomePage() {
   const router = useRouter();
@@ -324,6 +324,31 @@ export default function WelcomePage() {
               <p className="welcome-card-desc">
                 Staff notation, interval arcs, chord voicings, and the circle of fifths drawn step by
                 step. Theory made visual.
+              </p>
+              <span className="welcome-card-cta">
+                Start drawing <span aria-hidden>→</span>
+              </span>
+            </div>
+          </motion.button>
+
+          <motion.button
+            type="button"
+            className="welcome-card welcome-card-cs"
+            variants={fadeUp}
+            custom={5}
+            onClick={() => chooseSubject('cs')}
+            aria-label="Enter the computer science workspace"
+          >
+            <div className="welcome-card-noise" aria-hidden />
+            <div className="welcome-card-inner">
+              <span className="welcome-card-kicker">Subject</span>
+              <h2 className="welcome-card-title">CS</h2>
+              <p className="welcome-card-tagline">
+                sort algorithms, graphs, trees, hashing
+              </p>
+              <p className="welcome-card-desc">
+                Bubble sort swaps, BFS queues, recursion trees, and hash collisions drawn on the
+                chalkboard step by step. Algorithms made visual.
               </p>
               <span className="welcome-card-cta">
                 Start drawing <span aria-hidden>→</span>
