@@ -116,6 +116,15 @@ export function extractExpressionsFromBlueprint(
   if (!bp) return topicHint ? seedsForTopic(topicHint) : [];
   const found = new Set<string>();
 
+  // 0. Claude emitted pre-cleaned Desmos expressions — these have already
+  //    been server-validated against known-unsupported LaTeX (see
+  //    isDesmosCompatibleLatex in the generate route), so use them
+  //    exclusively when present to avoid noisy regex hits on narration.
+  if (bp.desmosExpressions && bp.desmosExpressions.length > 0) {
+    for (const s of bp.desmosExpressions) found.add(s);
+    return Array.from(found).slice(0, 6);
+  }
+
   // 1. Topic-based seeds — broadest coverage, near-zero false positives.
   for (const s of seedsForTopic(topicHint || bp.title || '')) found.add(s);
 

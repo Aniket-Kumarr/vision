@@ -180,6 +180,14 @@ export interface Blueprint {
   domain: Domain;
   strategy: Strategy;
   steps: Step[];
+  /**
+   * Optional pre-cleaned Desmos-compatible LaTeX expressions for the
+   * interactive panel. When present, /canvas prefers these over mining
+   * equations from narration. Each string must be a single expression
+   * parseable by Desmos's `setExpression({ latex })`. No \text, no
+   * \begin{cases}, no prose.
+   */
+  desmosExpressions?: string[];
 }
 
 // ---------------------------------------------------------------------------

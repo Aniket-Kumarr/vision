@@ -74,6 +74,7 @@ JSON Schema:
   "title": "string",
   "domain": "algebra|geometry|trigonometry|calculus|statistics|linear_algebra",
   "strategy": "decomposition|transformation|accumulation|relationship",
+  "desmosExpressions": ["string (optional array of Desmos-compatible LaTeX — see rules below)"],
   "steps": [
     {
       "id": 1,
@@ -122,7 +123,48 @@ Critical rules:
 - For curve type: fn must be a valid JavaScript math expression using x (e.g. "Math.sin(x)", "x*x")
 - Keep all drawings within canvas bounds (0-800 x, 0-600 y) with 20px margin
 - For text: fontSize should be between 14 and 36
-- For axes: place them so content fits on screen (cx/cy is the origin, xRange/yRange is how far each direction)`;
+- For axes: place them so content fits on screen (cx/cy is the origin, xRange/yRange is how far each direction)
+
+DESMOS LATEX RULES (for the desmosExpressions array — optional, up to 6 items):
+When the lesson involves a plottable function, conic, or identity, emit 1–6 Desmos-compatible LaTeX
+strings in \`desmosExpressions\`. If the concept is not graphable (proofs about integers,
+discrete algorithms, abstract categorical ideas), OMIT the field.
+
+ALLOWED in Desmos LaTeX:
+- Variables: single letters \`x y t a b c n\`; multi-char names must be wrapped in a subscript (\`a_{0}\`).
+- Operators: \`+ - * / = < > \\leq \\geq\`. Use \`*\` or juxtaposition for multiplication, never \`·\` or \`×\`.
+- Superscripts / subscripts with braces: \`x^{2}\`, not \`x^2\`. \`a_{1}\`, not \`a1\`.
+- Fractions: \`\\frac{num}{den}\`.
+- Roots: \`\\sqrt{x}\`, \`\\sqrt[3]{x}\`.
+- Trig: \`\\sin(x)\`, \`\\cos(x)\`, \`\\tan(x)\`, inverse as \`\\sin^{-1}(x)\`.
+- Exponentials/logs: \`e^{x}\`, \`\\log(x)\`, \`\\ln(x)\`, \`\\log_{base}(x)\`.
+- Greek letters: \`\\pi \\theta \\alpha \\beta \\omega\` etc.
+- Sum/product: \`\\sum_{n=1}^{10}n^{2}\`, \`\\prod_{i=1}^{N}a_{i}\`.
+- Integrals: \`\\int_{0}^{1}x^{2}dx\`.
+- Absolute value: \`\\left|x\\right|\`.
+- Piecewise: \`\\left\\{0 < x < 1: x, x\\right\\}\` (Desmos uses COLONS and COMMAS inside \\left\\{...\\right\\} — NEVER use \`\\begin{cases}\`).
+- Points: \`(1, 2)\`. Lists: \`[1, 2, 3]\`.
+
+FORBIDDEN (Desmos will silently refuse):
+- \`\\text{...}\` — no text labels inside expressions
+- \`\\begin{...}...\\end{...}\` — no LaTeX environments (no cases, align, matrix, etc.)
+- Mixed identifiers like \`xy\` meaning "product" — Desmos reads that as a single 2-letter variable name and errors. Use \`x \\cdot y\` or \`x*y\`.
+- Unicode math symbols (∑ ∫ √ π ≤ ≥ ≠) — always use the LaTeX command form.
+- Units or prose inside expressions (no "m/s", no "meters").
+- Multiple relations in one string: \`a = b = c\` — split into separate entries.
+- Bare numbers with no equation — every entry must contain \`=\`, \`<\`, \`>\`, \`\\leq\`, or \`\\geq\`, OR be a function definition like \`f(x)=...\`, OR a point, OR a list.
+
+EXAMPLES (math):
+Unit circle → ["x^{2}+y^{2}=1", "y=\\sin(\\theta)", "y=\\cos(\\theta)"]
+Quadratic → ["y=ax^{2}+bx+c", "y=x^{2}"]
+Derivative of x² → ["y=x^{2}", "f'(x)=2x"]
+Sine wave → ["y=A\\sin(Bx+C)+D", "A=1", "B=1", "C=0", "D=0"]
+
+EXAMPLES (physics):
+Projectile → ["y=v_{0}\\sin(\\theta)t-\\frac{1}{2}gt^{2}", "x=v_{0}\\cos(\\theta)t", "g=9.8", "\\theta=\\frac{\\pi}{4}", "v_{0}=20"]
+SHM → ["x=A\\cos(\\omega t+\\phi)", "A=1", "\\omega=2\\pi", "\\phi=0"]
+
+Validate each string mentally before emitting: if you are unsure it parses, OMIT it.`;
 }
 
 // ---------------------------------------------------------------------------
@@ -254,7 +296,42 @@ export function validateBlueprint(value: unknown): Blueprint {
     }
     if (!Array.isArray(step.drawings)) throw new Error(`Step ${i + 1} drawings must be an array`);
   }
+  // desmosExpressions is optional. If present, filter out any entries that
+  // violate Desmos's known-unsupported features so the panel never receives
+  // strings it will silently reject.
+  if (bp.desmosExpressions !== undefined) {
+    if (!Array.isArray(bp.desmosExpressions)) {
+      // Wrong shape — drop the field rather than fail the whole blueprint.
+      bp.desmosExpressions = [];
+    } else {
+      bp.desmosExpressions = (bp.desmosExpressions as unknown[])
+        .filter((e): e is string => typeof e === 'string')
+        .map((e) => e.trim())
+        .filter((e) => e.length > 0 && e.length < 200 && isDesmosCompatibleLatex(e))
+        .slice(0, 6);
+    }
+  }
   return value as Blueprint;
+}
+
+/**
+ * Conservative Desmos-LaTeX compatibility check. Rejects strings known to
+ * silently fail in `calc.setExpression({ latex })`:
+ *  - \\text{...} / \\begin{...} / unicode math / bare prose.
+ * Accepts strings whose body contains at least one math relation or function
+ * definition, matching the rules in the generation system prompt.
+ */
+function isDesmosCompatibleLatex(s: string): boolean {
+  if (/\\text\s*\{/.test(s)) return false;
+  if (/\\begin\s*\{/.test(s) || /\\end\s*\{/.test(s)) return false;
+  // Unicode math operators — Desmos wants the LaTeX command form.
+  if (/[∑∫√π≤≥≠÷×·∞∂∇]/.test(s)) return false;
+  // Must contain a relation, a function definition, a point, or a list.
+  const hasRelation = /[=<>]|\\leq\b|\\geq\b/.test(s);
+  const looksLikePoint = /^\s*\(.+,.+\)\s*$/.test(s);
+  const looksLikeList = /^\s*\[.+\]\s*$/.test(s);
+  if (!hasRelation && !looksLikePoint && !looksLikeList) return false;
+  return true;
 }
 
 export function getDifficultyLevelSuffix(level: DifficultyLevel): string {
