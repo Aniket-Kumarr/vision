@@ -23,10 +23,11 @@ declare global {
 
 const PLACEHOLDER_PHRASES = [
   'explain the unit circle',
+  'show me projectile motion',
   'what is a derivative?',
-  'show me the pythagorean theorem',
+  'how does a pendulum swing?',
+  'visualize Newton’s second law',
   'how do logarithms work?',
-  'visualize integration',
 ];
 
 function scrollToSignIn() {
@@ -183,7 +184,7 @@ export default function HomePage() {
         <div className="mc-nav-links">
           <a href="#mc-how">About</a>
           <a href="#mc-cta">Get started</a>
-          <a href="#mc-social">Examples</a>
+          <a href="#mc-how">Examples</a>
         </div>
         <div className="mc-nav-logo">Visua AI</div>
         <div className="mc-nav-right" id="mc-signin">
@@ -193,28 +194,20 @@ export default function HomePage() {
 
       <div style={{ maxWidth: 960, margin: '0 auto' }}>
         <div className="mc-hero">
-          <div className="mc-badge">
-            <div className="mc-stars">
-              {[0, 1, 2, 3, 4].map((i) => (
-                <div key={i} className="mc-star" />
-              ))}
-            </div>
-            <span>Loved by 2,000+ students</span>
-          </div>
           <h1 className="mc-h1">
             Every concept is visual,
             <br />
             we just <em>draw it for you.</em>
           </h1>
           <p className="mc-sub">
-            Type any math concept and watch it come alive on a chalkboard, step by step, the way a great teacher
-            would explain it.
+            Type any math or physics concept and watch it come alive on a chalkboard, step by step, the way a great
+            teacher would explain it.
           </p>
           <div className="mc-btns">
             <button type="button" className="mc-btn-p" onClick={scrollToSignIn}>
               Try for free
             </button>
-            <a href="#mc-social" className="mc-btn-s" style={{ textDecoration: 'none', display: 'inline-block' }}>
+            <a href="#mc-how" className="mc-btn-s" style={{ textDecoration: 'none', display: 'inline-block' }}>
               See examples
             </a>
           </div>
@@ -226,7 +219,7 @@ export default function HomePage() {
             </div>
             <div className="mc-ftag" style={{ top: '10%', right: '7%', animationDelay: '-2s' }}>
               <div className="mc-ftag-dot" style={{ background: '#7FD97F' }} />
-              Derivatives
+              Projectile Motion
             </div>
             <div className="mc-ftag" style={{ bottom: '30%', left: '3%', animationDelay: '-1s' }}>
               <div className="mc-ftag-dot" style={{ background: '#6BBFFF' }} />
@@ -234,11 +227,11 @@ export default function HomePage() {
             </div>
             <div className="mc-ftag" style={{ bottom: '16%', right: '5%', animationDelay: '-3s' }}>
               <div className="mc-ftag-dot" style={{ background: '#FF7F7F' }} />
-              Integrals
+              Newton’s Laws
             </div>
             <div className="mc-ftag" style={{ top: '44%', left: '2%', animationDelay: '-4s' }}>
               <div className="mc-ftag-dot" style={{ background: '#FFB347' }} />
-              Logarithms
+              Pendulum
             </div>
             <div className="mc-input-card">
               <div className="mc-input-header">
@@ -279,85 +272,14 @@ export default function HomePage() {
         </div>
       </div>
 
-      <div className="mc-social" id="mc-social">
-        <p className="mc-social-label">Loved by students and teachers:</p>
-        <div className="mc-tcards">
-          <div className="mc-tcard">
-            <div className="mc-tcard-stars">
-              {['★', '★', '★', '★', '★'].map((s, i) => (
-                <span key={i} className="mc-tstar">
-                  {s}
-                </span>
-              ))}
-            </div>
-            <p className="mc-tcard-txt">
-              &quot;I finally understood the unit circle after years of confusion. Watched it draw itself and
-              everything clicked.&quot;
-            </p>
-            <div className="mc-tcard-author">
-              <div className="mc-avatar" style={{ background: '#C05A28' }}>
-                S
-              </div>
-              <div>
-                <div className="mc-tcard-name">Sofia M.</div>
-                <div className="mc-tcard-role">AP Calculus student</div>
-              </div>
-            </div>
-          </div>
-          <div className="mc-tcard">
-            <div className="mc-tcard-stars">
-              {['★', '★', '★', '★', '★'].map((s, i) => (
-                <span key={i} className="mc-tstar">
-                  {s}
-                </span>
-              ))}
-            </div>
-            <p className="mc-tcard-txt">
-              &quot;My students use this before every test. The derivative animation is better than anything I could
-              draw.&quot;
-            </p>
-            <div className="mc-tcard-author">
-              <div className="mc-avatar" style={{ background: '#3A6E50' }}>
-                D
-              </div>
-              <div>
-                <div className="mc-tcard-name">Dr. Okafor</div>
-                <div className="mc-tcard-role">Math teacher</div>
-              </div>
-            </div>
-          </div>
-          <div className="mc-tcard">
-            <div className="mc-tcard-stars">
-              {['★', '★', '★', '★', '★'].map((s, i) => (
-                <span key={i} className="mc-tstar">
-                  {s}
-                </span>
-              ))}
-            </div>
-            <p className="mc-tcard-txt">
-              &quot;Typed explain logarithms and got a 5-step visual proof. Better than any YouTube video I&apos;ve
-              watched.&quot;
-            </p>
-            <div className="mc-tcard-author">
-              <div className="mc-avatar" style={{ background: '#6A7A30' }}>
-                E
-              </div>
-              <div>
-                <div className="mc-tcard-name">Elena V.</div>
-                <div className="mc-tcard-role">College freshman</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
       <div className="mc-how" id="mc-how">
         <div className="mc-pill">HOW IT WORKS</div>
         <h2 className="mc-h2">
-          Three steps to <em>seeing</em> math.
+          Three steps to <em>seeing</em> math and physics.
         </h2>
         <p className="mc-h2-sub">
-          From typing a concept to watching it drawn in chalk, the whole experience takes seconds.
+          From typing a concept to watching it drawn in chalk — equations, forces, motion, and more — the whole
+          experience takes seconds.
         </p>
         <div className="mc-frows">
           <div className="mc-frow">
@@ -365,8 +287,8 @@ export default function HomePage() {
               <div className="mc-frow-num">01</div>
               <div className="mc-frow-title">Type any concept.</div>
               <p className="mc-frow-desc">
-                From the unit circle to eigenvalues: type anything and Visua AI understands what you need to see,
-                not just what you asked.
+                From the unit circle to projectile motion: type any math or physics concept and Visua AI understands
+                what you need to see, not just what you asked.
               </p>
             </div>
             <div className="mc-steplist">
@@ -400,6 +322,23 @@ export default function HomePage() {
               <div className="mc-step-row">
                 <div className="mc-step-left">
                   <div className="mc-check done">✓</div>
+                  Projectile Motion
+                </div>
+                <div
+                  style={{
+                    fontSize: 10,
+                    padding: '2px 7px',
+                    background: 'rgba(44,26,14,0.05)',
+                    borderRadius: 4,
+                    color: '#7A5A42',
+                  }}
+                >
+                  Physics
+                </div>
+              </div>
+              <div className="mc-step-row">
+                <div className="mc-step-left">
+                  <div className="mc-check done">✓</div>
                   Derivatives
                 </div>
                 <div
@@ -417,7 +356,7 @@ export default function HomePage() {
               <div className="mc-step-row">
                 <div className="mc-step-left">
                   <div className="mc-check done">✓</div>
-                  Pythagorean Theorem
+                  Newton’s Laws
                 </div>
                 <div
                   style={{
@@ -428,7 +367,7 @@ export default function HomePage() {
                     color: '#7A5A42',
                   }}
                 >
-                  Geometry
+                  Physics
                 </div>
               </div>
               <div className="mc-step-row">
@@ -444,76 +383,54 @@ export default function HomePage() {
             <div className="mc-chalkboard">
               <svg viewBox="0 0 280 170" xmlns="http://www.w3.org/2000/svg" width="280" height="170" aria-hidden>
                 <defs>
-                  <filter id="mc-ck">
+                  <filter id="mc-ck-phys">
                     <feTurbulence type="fractalNoise" baseFrequency="0.7" numOctaves="3" result="n" />
                     <feDisplacementMap in="SourceGraphic" in2="n" scale="1.5" xChannelSelector="R" yChannelSelector="G" />
                   </filter>
+                  <marker id="mc-arr-blue" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#6BBFFF" />
+                  </marker>
+                  <marker id="mc-arr-red" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#FF7F7F" />
+                  </marker>
                 </defs>
-                <line
-                  x1="50"
-                  y1="85"
-                  x2="230"
-                  y2="85"
-                  stroke="rgba(245,240,232,0.28)"
-                  strokeWidth="1.5"
-                  filter="url(#mc-ck)"
-                  strokeLinecap="round"
-                />
-                <line
-                  x1="140"
-                  y1="25"
-                  x2="140"
-                  y2="145"
-                  stroke="rgba(245,240,232,0.28)"
-                  strokeWidth="1.5"
-                  filter="url(#mc-ck)"
-                  strokeLinecap="round"
-                />
-                <circle
-                  cx="140"
-                  cy="85"
-                  r="48"
-                  stroke="rgba(245,240,232,0.82)"
-                  strokeWidth="2"
-                  fill="none"
-                  filter="url(#mc-ck)"
-                />
-                <circle cx="174" cy="51" r="5" fill="#7FD97F" />
-                <line
-                  x1="140"
-                  y1="85"
-                  x2="174"
-                  y2="51"
+
+                <line x1="30" y1="140" x2="260" y2="140" stroke="rgba(245,240,232,0.28)" strokeWidth="1.5" filter="url(#mc-ck-phys)" strokeLinecap="round" />
+                <line x1="40" y1="20" x2="40" y2="140" stroke="rgba(245,240,232,0.28)" strokeWidth="1.5" filter="url(#mc-ck-phys)" strokeLinecap="round" />
+
+                <path
+                  d="M 40 140 Q 145 -40 250 140"
                   stroke="#FFE066"
                   strokeWidth="2"
+                  fill="none"
                   strokeLinecap="round"
-                  filter="url(#mc-ck)"
+                  strokeDasharray="3,4"
+                  filter="url(#mc-ck-phys)"
                 />
-                <line
-                  x1="174"
-                  y1="51"
-                  x2="174"
-                  y2="85"
-                  stroke="#FF7F7F"
-                  strokeWidth="2"
-                  strokeDasharray="5,4"
-                  strokeLinecap="round"
-                />
-                <line
-                  x1="140"
-                  y1="85"
-                  x2="174"
-                  y2="85"
-                  stroke="#6BBFFF"
-                  strokeWidth="2"
-                  strokeDasharray="5,4"
-                  strokeLinecap="round"
-                />
-                <text x="180" y="70" fontFamily="var(--font-caveat), Caveat, cursive" fontSize="13" fill="#FF7F7F" opacity="0.9">
-                  sin θ
+
+                <circle cx="66" cy="101" r="2" fill="#FFE066" opacity="0.85" />
+                <circle cx="92" cy="72" r="2" fill="#FFE066" opacity="0.85" />
+                <circle cx="197" cy="72" r="2" fill="#FFE066" opacity="0.85" />
+                <circle cx="223" cy="101" r="2" fill="#FFE066" opacity="0.85" />
+
+                <circle cx="145" cy="50" r="5" fill="#7FD97F" />
+
+                <path d="M 40 140 L 74 112" stroke="#6BBFFF" strokeWidth="2" strokeLinecap="round" markerEnd="url(#mc-arr-blue)" filter="url(#mc-ck-phys)" />
+                <path d="M 145 58 L 145 86" stroke="#FF7F7F" strokeWidth="2" strokeLinecap="round" markerEnd="url(#mc-arr-red)" filter="url(#mc-ck-phys)" />
+
+                <path d="M 60 140 A 18 18 0 0 0 54 128" stroke="rgba(245,240,232,0.7)" strokeWidth="1.3" fill="none" filter="url(#mc-ck-phys)" />
+
+                <text x="78" y="108" fontFamily="var(--font-caveat), Caveat, cursive" fontSize="13" fill="#6BBFFF" opacity="0.95">
+                  v₀
                 </text>
-                <text x="148" y="100" fontFamily="var(--font-caveat), Caveat, cursive" fontSize="13" fill="#6BBFFF" opacity="0.9">
-                  cos θ
+                <text x="152" y="78" fontFamily="var(--font-caveat), Caveat, cursive" fontSize="13" fill="#FF7F7F" opacity="0.95">
+                  g
+                </text>
+                <text x="62" y="136" fontFamily="var(--font-caveat), Caveat, cursive" fontSize="11" fill="rgba(245,240,232,0.85)">
+                  θ
+                </text>
+                <text x="155" y="40" fontFamily="var(--font-caveat), Caveat, cursive" fontSize="12" fill="#7FD97F" opacity="0.9">
+                  apex
                 </text>
               </svg>
             </div>
@@ -544,33 +461,33 @@ export default function HomePage() {
                   letterSpacing: '0.06em',
                 }}
               >
-                UNIT CIRCLE · 5 STEPS
+                PROJECTILE MOTION · 5 STEPS
               </div>
               <div className="mc-step-row active">
                 <div className="mc-step-left">
                   <div className="mc-check done">✓</div>
-                  Draw axes and circle
+                  Draw axes and ground
                 </div>
                 <div className="mc-step-time">Step 1</div>
               </div>
               <div className="mc-step-row active">
                 <div className="mc-step-left">
                   <div className="mc-check done">✓</div>
-                  Add the angle θ
+                  Launch velocity v₀ at angle θ
                 </div>
                 <div className="mc-step-time">Step 2</div>
               </div>
               <div className="mc-step-row active">
                 <div className="mc-step-left">
                   <div className="mc-check done">✓</div>
-                  Project sin and cos
+                  Trace the parabolic arc
                 </div>
                 <div className="mc-step-time">Step 3</div>
               </div>
               <div className="mc-step-row">
                 <div className="mc-step-left">
                   <div className="mc-check" />
-                  Animate the point
+                  Add gravity g at apex
                 </div>
                 <div className="mc-step-time" style={{ opacity: 0.4 }}>
                   Step 4
@@ -579,7 +496,7 @@ export default function HomePage() {
               <div className="mc-step-row">
                 <div className="mc-step-left">
                   <div className="mc-check" />
-                  Reveal the formula
+                  Reveal range and time of flight
                 </div>
                 <div className="mc-step-time" style={{ opacity: 0.3 }}>
                   Step 5
@@ -612,7 +529,7 @@ export default function HomePage() {
       <div className="mc-cta-sec" id="mc-cta">
         <div className="mc-pill">GET STARTED</div>
         <h2 className="mc-cta-h2">
-          Math was never meant
+          Math and physics were never meant
           <br />
           to be <em>invisible.</em>
         </h2>
