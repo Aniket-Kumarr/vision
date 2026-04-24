@@ -192,7 +192,7 @@ async function generateFromImage(
     try {
       const response = await client.messages.create({
         model: GENERATION_MODEL,
-        max_tokens: 4096,
+        max_tokens: 8192,
         system: buildSystemPrompt(subject),
         messages: [
           {

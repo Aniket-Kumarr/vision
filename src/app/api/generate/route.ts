@@ -374,7 +374,10 @@ async function generateWithClaude(
     try {
       const response = await client.messages.create({
         model: GENERATION_MODEL,
-        max_tokens: 4096,
+        // 8192 was 4096 — the added Desmos-LaTeX prompt section plus the
+        // optional desmosExpressions array occasionally pushed Sonnet past
+        // the old cap, truncating JSON mid-string and causing a 500.
+        max_tokens: 8192,
         system: buildSystemPrompt(subject),
         messages: [
           {
