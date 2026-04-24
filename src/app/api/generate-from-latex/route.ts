@@ -39,7 +39,7 @@ Top edge is y=0, bottom edge is y=600.
 JSON Schema:
 {
   "title": "string",
-  "domain": "algebra|geometry|trigonometry|calculus|statistics|linear_algebra",
+  "domain": "algebra|geometry|trigonometry|calculus|statistics|linear_algebra|mechanics|waves|electromagnetism|thermodynamics|cell_biology|genetics|physiology|biochemistry|ecology|algorithms|data_structures|graph_theory|complexity|general",
   "strategy": "decomposition|transformation|accumulation|relationship",
   "steps": [
     {
@@ -110,13 +110,16 @@ function sanitizeLatex(raw: string): string | null {
   return trimmed.replace(/[\x00-\x1F\x7F]/g, '');
 }
 
+const VALID_DOMAINS_EXTRA = [
+  'mechanics', 'waves', 'electromagnetism', 'thermodynamics',
+  'cell_biology', 'genetics', 'physiology', 'biochemistry', 'ecology',
+  'algorithms', 'data_structures', 'graph_theory', 'complexity',
+  'general',
+] as const;
+
 const VALID_DOMAINS = new Set<Domain>([
-  'algebra',
-  'geometry',
-  'trigonometry',
-  'calculus',
-  'statistics',
-  'linear_algebra',
+  'algebra', 'geometry', 'trigonometry', 'calculus', 'statistics', 'linear_algebra',
+  ...VALID_DOMAINS_EXTRA,
 ]);
 
 const VALID_STRATEGIES = new Set<Strategy>([

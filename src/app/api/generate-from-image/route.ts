@@ -6,7 +6,11 @@ import { Blueprint, Domain, Strategy } from '@/lib/types';
 // Constants
 // ---------------------------------------------------------------------------
 
-/** Model used for vision-based blueprint generation. */
+/**
+ * Vision-based blueprint generation always uses Sonnet. Image understanding
+ * benefits materially from Sonnet's stronger visual reasoning; the speed
+ * win from Haiku on bio/cs doesn't carry over to the image path.
+ */
 const GENERATION_MODEL = 'claude-sonnet-4-5';
 
 /** Hard cap on the image payload (bytes). Matches the client-side cap. */
@@ -55,7 +59,7 @@ Top edge is y=0, bottom edge is y=600.
 JSON Schema:
 {
   "title": "string",
-  "domain": "algebra|geometry|trigonometry|calculus|statistics|linear_algebra",
+  "domain": "algebra|geometry|trigonometry|calculus|statistics|linear_algebra|mechanics|waves|electromagnetism|thermodynamics|cell_biology|genetics|physiology|biochemistry|ecology|algorithms|data_structures|graph_theory|complexity|general",
   "strategy": "decomposition|transformation|accumulation|relationship",
   "steps": [
     {
@@ -113,12 +117,11 @@ Critical rules:
 // ---------------------------------------------------------------------------
 
 const VALID_DOMAINS = new Set<Domain>([
-  'algebra',
-  'geometry',
-  'trigonometry',
-  'calculus',
-  'statistics',
-  'linear_algebra',
+  'algebra', 'geometry', 'trigonometry', 'calculus', 'statistics', 'linear_algebra',
+  'mechanics', 'waves', 'electromagnetism', 'thermodynamics',
+  'cell_biology', 'genetics', 'physiology', 'biochemistry', 'ecology',
+  'algorithms', 'data_structures', 'graph_theory', 'complexity',
+  'general',
 ]);
 
 const VALID_STRATEGIES = new Set<Strategy>([

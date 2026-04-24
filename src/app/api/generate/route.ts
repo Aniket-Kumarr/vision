@@ -7,8 +7,20 @@ import { Blueprint, Domain, Persona, Strategy, DifficultyLevel } from '@/lib/typ
 // Constants
 // ---------------------------------------------------------------------------
 
-/** Model used for blueprint generation. */
-const GENERATION_MODEL = 'claude-sonnet-4-5';
+/**
+ * Model routing per subject. Bio and CS get Haiku 4.5 because their
+ * blueprints are high-volume-but-templated (cycle arrows, graph nodes,
+ * sort swaps) where Haiku's ~3x faster output rate turns a 45-second
+ * wait into ~15 seconds without meaningful quality loss. Math and
+ * physics stay on Sonnet 4.5 where the reasoning-per-token matters more
+ * (proof chains, physical reframing of abstract math).
+ */
+const SUBJECT_MODEL: Record<'math' | 'physics' | 'biology' | 'cs', string> = {
+  math: 'claude-sonnet-4-5',
+  physics: 'claude-sonnet-4-5',
+  biology: 'claude-haiku-4-5-20251001',
+  cs: 'claude-haiku-4-5-20251001',
+};
 
 /**
  * Hard cap on the concept string accepted from the client (includes rich chip prompts).
@@ -28,30 +40,32 @@ const PHYSICS_INTRO = `You are a physics visualization engine for an interactive
 
 IMPORTANT: Only create physics lessons. If the topic is clearly a pure math topic with no physical interpretation (like "unit circle proof", "integration by parts", "derivative rules"), reframe it with a physical application — e.g. "unit circle" → circular motion; "derivative" → velocity as derivative of position; "integral" → work as integral of force. Every lesson must show a physical scenario, quantity, or phenomenon, not abstract math.`;
 
-const BIOLOGY_INTRO = `You are a biology visualization engine for an interactive chalkboard animation app. Your job is to take any biology concept — cellular processes, organelles, metabolic cycles (Krebs, Calvin), genetics (Punnett squares, DNA), action potentials, ecology — and break it down into a step-by-step visual explanation that draws on a black chalkboard with colorful chalk.
+const BIOLOGY_INTRO = `You are a biology visualization engine for a chalkboard animation app. Take any biology concept and draw it step-by-step with chalk on a black board.
 
-Use the drawing primitives (line, circle, arc, text, arrow, shade, etc.) to render process diagrams, labeled organelles, cycle arrows, membrane cross-sections, and population charts. Focus on the story: WHY the process works the way it does, what each step accomplishes biologically — not rote memorization.`;
+LAYOUT (pick the one that fits the concept, build it in step 1, progress through it in later steps):
+- Cycle (Krebs, Calvin, cell cycle) → 5–8 node \`circle\` arranged around canvas center (400,300), \`arrow\` connecting them in a loop, molecule names as \`text\` inside each node.
+- Process/pathway (translation, glycolysis) → left-to-right \`arrow\` chain of boxes (\`rect\`) with reactant/product \`text\` above/below each step.
+- Structure (neuron, membrane, chloroplast) → one large labeled drawing in step 1, then progressively highlight/shade parts in later steps.
+- Genetics (Punnett, pedigree) → 2×2 grid of \`rect\` with allele \`text\`, or tree of \`circle\` linked by \`line\`.
+- Action potential / population graph → \`axes\` + \`curve\` segments with phase labels via \`text\`.
 
-const CS_INTRO = `You are a computer science visualization engine for an interactive chalkboard animation app. Your job is to take any CS concept — sorting algorithms, graph traversal, recursion, data structures, hashing — and break it down into a step-by-step visual explanation that draws on a black chalkboard with colorful chalk.
+COLORS: white=base anatomy · green=result/products/"after" state · yellow=key molecule or catalyst · blue=input/reactant · red=energy release or critical point · orange=labels · cyan=secondary structures.
 
-DRAWING CONVENTIONS:
-- Arrays: draw labeled rectangles in a row, one cell per element. Index labels below each cell.
-- Linked lists: draw circles connected left-to-right with arrow primitives. Each circle holds a value.
-- Trees: draw circles connected by lines, level by level top-to-bottom. Root at top center.
-- Graphs: draw circles (nodes) as points spread across the canvas, connect them with line primitives. Edge weights as small text labels near the midpoint.
-- Pointers / indices (low, high, mid, pivot): draw arrow primitives pointing at the relevant cell or node, with a text label beside the arrowhead.
-- Recursion / call stack: draw indented layered rectangles, each labeled with the function call and its arguments.
+STEP SHAPE: step 1 establishes the stage (organelle, empty cycle frame, starting molecule). Each later step adds ONE transformation — an arrow traversal, a phosphorylation, a gate opening — and its narration answers WHY biology chose this step, not just what happens.`;
 
-COLOR ENCODING (strict — always follow):
-- white: base structures, outlines, unvisited nodes, unprocessed array cells
-- yellow: currently active element (the item being compared, the node being dequeued)
-- green: confirmed sorted / visited / finalized element
-- red: pivot element, swap arrows, the element causing a violation
-- blue: secondary pointers (low pointer, left child, queue items waiting)
-- orange: variables, unknowns, index labels
-- cyan: queue contents, auxiliary structures
+const CS_INTRO = `You are a computer science visualization engine for a chalkboard animation app. Take any CS concept and draw it step-by-step with chalk on a black board.
 
-Each step narration must explain the algorithmic intuition — WHY the algorithm makes this choice, not just WHAT it does. Think like a brilliant CS professor: connect the local action to the global invariant the algorithm maintains.`;
+STRUCTURES (pick the one that fits, draw it in step 1, mutate it in later steps):
+- Array → row of \`rect\` (50×50 each) with \`text\` for value inside + \`text\` index below.
+- Linked list → row of \`circle\` (r=22) connected by \`arrow\`, value \`text\` inside each.
+- Tree → \`circle\` nodes on levels 100/250/400/550, connected by \`line\`, root at top.
+- Graph → 4–8 \`circle\` nodes placed across canvas, connected by \`line\`, edge weights as small \`text\`.
+- Pointers (low/high/mid/pivot/curr) → \`arrow\` pointing at a cell + \`text\` label.
+
+COLORS (non-negotiable — the whole pedagogy relies on these):
+white=unprocessed · yellow=currently active · green=done/sorted/visited · red=pivot or violation · blue=secondary pointer · orange=variables/indices · cyan=queue/aux structure.
+
+STEP SHAPE: step 1 sets up the structure. Steps 2-5 mutate ONE thing each (a swap, a pointer move, a node visit) and recolor the affected cells. Narration explains the *invariant* being maintained, not just the mechanics.`;
 
 export function buildSystemPrompt(subject: Subject): string {
   let intro: string;
@@ -72,7 +86,7 @@ Top edge is y=0, bottom edge is y=600.
 JSON Schema:
 {
   "title": "string",
-  "domain": "algebra|geometry|trigonometry|calculus|statistics|linear_algebra",
+  "domain": "algebra|geometry|trigonometry|calculus|statistics|linear_algebra|mechanics|waves|electromagnetism|thermodynamics|cell_biology|genetics|physiology|biochemistry|ecology|algorithms|data_structures|graph_theory|complexity|general",
   "strategy": "decomposition|transformation|accumulation|relationship",
   "desmosExpressions": ["string (optional array of Desmos-compatible LaTeX — see rules below)"],
   "steps": [
@@ -291,6 +305,20 @@ const VALID_DOMAINS = new Set<Domain>([
   'calculus',
   'statistics',
   'linear_algebra',
+  'mechanics',
+  'waves',
+  'electromagnetism',
+  'thermodynamics',
+  'cell_biology',
+  'genetics',
+  'physiology',
+  'biochemistry',
+  'ecology',
+  'algorithms',
+  'data_structures',
+  'graph_theory',
+  'complexity',
+  'general',
 ]);
 
 const VALID_STRATEGIES = new Set<Strategy>([
@@ -458,7 +486,7 @@ async function generateWithClaude(
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       const response = await client.messages.create({
-        model: GENERATION_MODEL,
+        model: SUBJECT_MODEL[subject],
         // 8192 was 4096 — the added Desmos-LaTeX prompt section plus the
         // optional desmosExpressions array occasionally pushed Sonnet past
         // the old cap, truncating JSON mid-string and causing a 500.

@@ -11,7 +11,32 @@ export const CHALK_COLORS: Record<ChalkColor, string> = {
   cyan: '#7FFFEF',
 };
 
-export type Domain = 'algebra' | 'geometry' | 'trigonometry' | 'calculus' | 'statistics' | 'linear_algebra';
+export type Domain =
+  // math
+  | 'algebra'
+  | 'geometry'
+  | 'trigonometry'
+  | 'calculus'
+  | 'statistics'
+  | 'linear_algebra'
+  // physics
+  | 'mechanics'
+  | 'waves'
+  | 'electromagnetism'
+  | 'thermodynamics'
+  // biology
+  | 'cell_biology'
+  | 'genetics'
+  | 'physiology'
+  | 'biochemistry'
+  | 'ecology'
+  // cs
+  | 'algorithms'
+  | 'data_structures'
+  | 'graph_theory'
+  | 'complexity'
+  // catch-all for anything that doesn't fit but is still valid subject work
+  | 'general';
 export type Strategy = 'decomposition' | 'transformation' | 'accumulation' | 'relationship';
 
 export type DifficultyLevel = 'kid' | 'student' | 'college' | 'grad' | 'researcher';
