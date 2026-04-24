@@ -18,8 +18,12 @@ import { Blueprint, Domain, Persona, Strategy, DifficultyLevel } from '@/lib/typ
 const SUBJECT_MODEL: Record<'math' | 'physics' | 'biology' | 'cs', string> = {
   math: 'claude-sonnet-4-5',
   physics: 'claude-sonnet-4-5',
-  biology: 'claude-haiku-4-5-20251001',
-  cs: 'claude-haiku-4-5-20251001',
+  // Bio and CS stay on Sonnet too. Haiku was faster but produced visibly
+  // sparser blueprints — fewer primitives per step, less visual richness.
+  // The whole brand is "more drawings, visually appealing" so we pay the
+  // latency for output quality.
+  biology: 'claude-sonnet-4-5',
+  cs: 'claude-sonnet-4-5',
 };
 
 /**
@@ -107,7 +111,7 @@ JSON Schema:
             "COMMENT_triangle": "x1, y1, x2, y2, x3, y3, fill (boolean)",
             "COMMENT_point": "x, y, label (string), labelPosition (top|bottom|left|right)",
             "COMMENT_arrow": "x1, y1, x2, y2",
-            "COMMENT_text": "x, y, content (string), fontSize (number)",
+            "COMMENT_text": "x, y, content (string), fontSize (number), anchor (optional: 'start' | 'middle' | 'end' — default 'start' places x at LEFT edge of text; use 'middle' to center at x, 'end' to right-align)",
             "COMMENT_curve": "fn (js math expr using x), xMin, xMax, yScale, yOffset",
             "COMMENT_shade": "points ([[x,y],...]), opacity (0-1)",
             "COMMENT_angle_mark": "cx, cy, r, startAngle, endAngle (radians)",
@@ -139,28 +143,68 @@ Critical rules:
 - For text: fontSize should be between 14 and 36
 - For axes: place them so content fits on screen (cx/cy is the origin, xRange/yRange is how far each direction)
 
-SPATIAL DISCIPLINE (non-negotiable — prevents the overlap-mess failure mode):
-Previous steps' drawings REMAIN on the canvas forever. Never re-draw a label, box, or
-axis that already exists. Never emit two pieces of text that occupy overlapping bounding
-boxes. Budget the 800×600 canvas BEFORE you start:
+VISUAL RICHNESS (the brand is "hand-drawn lessons with lots of beautiful chalk"):
+Aim for 40–80 drawing primitives across the whole blueprint. A lesson with only 15
+primitives feels sparse and unexplanatory. Use the FULL 800×600 canvas — push content
+to the margins, use multiple panels, draw supporting annotations (labeled points,
+arrows, braces, shaded regions) around the core diagram. Color-code aggressively.
 
-- For 3+ step lessons, divide the canvas into non-overlapping zones and assign each
-  step its own zone. A reliable split for 4 steps is a 2×2 grid of ~400×300 quadrants
-  (top-left, top-right, bottom-left, bottom-right). For 6 steps use a 3-column × 2-row
-  grid of ~266×300 cells.
-- For lessons that build ONE central diagram incrementally (a triangle being dissected,
-  a unit circle being annotated), step 1 places the base in the center. Each later step
-  adds NEW primitives at NEW coordinates — arrows pointing at parts, labels in the
-  margin (not on top of existing text), color overlays via shade. Never redraw the
-  base shape.
-- Text labels must not cross each other's bounding boxes. Approximate a label's width
-  as \`fontSize * 0.6 * charCount\` and its height as \`fontSize * 1.2\`. Two text
-  primitives whose boxes would intersect must be moved apart OR only one emitted.
-- Title text belongs in the top 60 pixels (y ∈ [20, 60]) and is drawn ONCE in step 1.
-- Do NOT repeat an equation in multiple steps. If step 2 derives \`c^2 = a^2 + b^2\`,
-  step 3 can reference it but must not redraw it.
-- If a later step needs to "update" a value (e.g. slider moves from θ=30° to θ=60°),
-  emit the NEW value in a new location — never redraw on top of the old one.
+SPATIAL DISCIPLINE (prevents the overlap-mess failure mode without compressing):
+Previous steps' drawings REMAIN on the canvas forever, so plan the full layout UP
+FRONT before step 1 emits anything. The goal is NOT "draw less" — it is "draw a lot,
+but spread across the whole canvas so nothing stacks."
+
+- **Sketch the spatial plan mentally first.** Decide which region each step will
+  occupy. Typical layouts:
+  * Build-one-big-diagram (unit circle, free-body diagram, Krebs cycle): step 1 draws
+    the base shape filling ~60% of the canvas (r≈200 for a central circle, or a
+    600×400 bounding rect). Each later step adds NEW annotations in the SURROUNDING
+    margins — labels, arrows pointing inward, side panels with formulas.
+  * Compare-and-contrast (before/after, regular vs log, input vs output): use a 2×1
+    vertical split (left half, right half, each ~380×560) OR a 1×2 horizontal split
+    (top half, bottom half, each ~760×280). Draw both panels in step 1; fill them
+    across later steps.
+  * Progressive derivation (proof chains, algorithm traces): use a 3×2 grid of six
+    ~266×300 cells, one per step. Each step draws ONLY in its own cell.
+- **Never redraw what already exists.** The title, axes, base shape, and any label
+  already on the board stays. Later steps ADD new primitives at new coordinates.
+- **Text labels must not stack.** Approximate each label as \`width = fontSize * 0.6 *
+  charCount\`, \`height = fontSize * 1.2\`. Before emitting a new \`text\` primitive,
+  check none of its corners fall inside an already-emitted label's bounding box. If
+  they do, move the new label to open space (to the side, above, or below).
+- **Title goes in y ∈ [20, 60]**, drawn ONCE in step 1, fontSize 28-32.
+- **Don't repeat an equation.** If step 2 shows \`c² = a² + b²\`, step 3 references it
+  by pointing at it with an arrow; it does not redraw it.
+- **Updated values go in new locations.** If a slider moves from θ=30° to θ=60°, emit
+  the new value at a new (x, y) — never on top of the old text.
+- **Spread the ink.** If your blueprint only touches the center 400×300 region, you
+  are wasting the canvas. Use the edges: put legends in bottom margins, step-labels
+  in left margin, summary formulas in top-right.
+
+TEXT ANCHORING (critical — prevents "label overflows into box" bugs):
+The \`text\` primitive's \`x\` is the LEFT edge of the text by default. So a label
+like "F = 10 N" with \`x: 300, fontSize: 18\` starts at x=300 and extends RIGHTWARD
+to roughly x=390. If you want text CENTERED on a point (inside a box, next to a
+node), you MUST pass \`anchor: 'middle'\` — then \`x\` is treated as the center.
+
+USE anchor: 'middle' FOR:
+- Text inside a \`rect\` (pass the rect's center x as the text's x).
+- Text centered below a \`point\`, \`circle\`, or node.
+- Titles / section headers.
+- Any caption where you naturally think "place this at x=N".
+
+USE anchor: 'end' FOR:
+- Labels to the RIGHT of something where the text should END at x.
+- Right-side legend entries.
+
+USE anchor: 'start' (or omit) FOR:
+- Labels to the LEFT of something where the text extends leftward-to-rightward.
+- Inline annotations like "← force here" that hug a specific coordinate.
+
+Estimate text width as \`fontSize * 0.55 * charCount\`. If your text is 10 chars at
+fontSize 18, it's ~99 px wide. Pick x such that [x, x+width] (for 'start'),
+[x-width/2, x+width/2] (for 'middle'), or [x-width, x] (for 'end') stays in open
+space and doesn't cross any other drawing's bounding box.
 
 DESMOS LATEX RULES (for the desmosExpressions array — optional, up to 6 items):
 

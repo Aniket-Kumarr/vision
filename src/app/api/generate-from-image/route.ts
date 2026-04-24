@@ -79,7 +79,7 @@ JSON Schema:
             "COMMENT_triangle": "x1, y1, x2, y2, x3, y3, fill (boolean)",
             "COMMENT_point": "x, y, label (string), labelPosition (top|bottom|left|right)",
             "COMMENT_arrow": "x1, y1, x2, y2",
-            "COMMENT_text": "x, y, content (string), fontSize (number)",
+            "COMMENT_text": "x, y, content (string), fontSize (number), anchor (optional: 'start' | 'middle' | 'end' — default 'start' places x at LEFT edge of text; use 'middle' to center at x)",
             "COMMENT_curve": "fn (js math expr using x), xMin, xMax, yScale, yOffset",
             "COMMENT_shade": "points ([[x,y],...]), opacity (0-1)",
             "COMMENT_angle_mark": "cx, cy, r, startAngle, endAngle (radians)",

@@ -316,7 +316,7 @@ function renderDrawing(
     }
     case 'text': {
       const p = params as TextParams;
-      drawTextChalk(ctx, p.x, p.y, p.content, p.fontSize, color, progress);
+      drawTextChalk(ctx, p.x, p.y, p.content, p.fontSize, color, progress, p.anchor);
       break;
     }
     case 'curve': {

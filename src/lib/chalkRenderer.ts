@@ -428,7 +428,8 @@ export function drawTextChalk(
   content: string,
   fontSize: number,
   color: ChalkColor,
-  progress: number
+  progress: number,
+  anchor: 'start' | 'middle' | 'end' = 'start'
 ): void {
   const hex = getColor(color);
   const chars = Math.floor(content.length * progress);
@@ -439,8 +440,16 @@ export function drawTextChalk(
   ctx.fillStyle = hexToRgba(hex, chalkOpacity());
   ctx.textBaseline = 'middle';
 
-  // Slight jitter per character for chalk feel
-  let cx = x;
+  // Measure the full content (not just what's drawn so far) so anchoring stays
+  // stable across the typewriter animation — otherwise a 'middle'-anchored
+  // label would drift rightward as characters reveal.
+  const totalWidth = ctx.measureText(content).width;
+  const startX =
+    anchor === 'middle' ? x - totalWidth / 2
+    : anchor === 'end' ? x - totalWidth
+    : x;
+
+  let cx = startX;
   for (let i = 0; i < text.length; i++) {
     const charWidth = ctx.measureText(text[i]).width;
     ctx.fillText(text[i], jitter(cx, 0.5), jitter(y, 0.4));
@@ -743,8 +752,8 @@ export function renderDrawing(
       drawArrowChalk(ctx, x1, y1, x2, y2, color, progress);
     },
     text: (ctx, p, color, progress) => {
-      const { x, y, content, fontSize } = p as TextParams;
-      drawTextChalk(ctx, x, y, content, fontSize, color, progress);
+      const { x, y, content, fontSize, anchor } = p as TextParams;
+      drawTextChalk(ctx, x, y, content, fontSize, color, progress, anchor);
     },
     curve: (ctx, p, color, progress) => {
       const { fn, xMin, xMax, yScale, yOffset } = p as CurveParams;

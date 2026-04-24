@@ -129,6 +129,16 @@ export interface TextParams {
   content: string;
   /** Font size in pixels. Must be a positive integer. */
   fontSize: number;
+  /**
+   * Horizontal alignment of the text around `x`:
+   *   'start'  → `x` is the LEFT edge of the text (default, backward compatible).
+   *   'middle' → `x` is the CENTER — use this when labeling the inside of a
+   *              circle, rect, or any shape whose center you know.
+   *   'end'    → `x` is the RIGHT edge — use when anchoring a label to the
+   *              right side of something.
+   * Vertical alignment is always mid-line (textBaseline = 'middle').
+   */
+  anchor?: 'start' | 'middle' | 'end';
 }
 
 export interface CurveParams {
