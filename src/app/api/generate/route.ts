@@ -20,7 +20,7 @@ const client = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
-type Subject = 'math' | 'physics';
+export type Subject = 'math' | 'physics';
 
 const MATH_INTRO = `You are a mathematical visualization engine for an interactive chalkboard animation app. Your job is to take any math concept and break it down into a step-by-step visual explanation that draws on a black chalkboard with colorful chalk.`;
 
@@ -28,7 +28,7 @@ const PHYSICS_INTRO = `You are a physics visualization engine for an interactive
 
 IMPORTANT: Only create physics lessons. If the topic is clearly a pure math topic with no physical interpretation (like "unit circle proof", "integration by parts", "derivative rules"), reframe it with a physical application — e.g. "unit circle" → circular motion; "derivative" → velocity as derivative of position; "integral" → work as integral of force. Every lesson must show a physical scenario, quantity, or phenomenon, not abstract math.`;
 
-function buildSystemPrompt(subject: Subject): string {
+export function buildSystemPrompt(subject: Subject): string {
   const intro = subject === 'physics' ? PHYSICS_INTRO : MATH_INTRO;
   return `${intro}
 
@@ -103,7 +103,7 @@ Critical rules:
  * prompt.  Removes ASCII control characters and trims whitespace.  Returns
  * null when the value should be rejected outright.
  */
-function sanitizeConcept(raw: string): string | null {
+export function sanitizeConcept(raw: string): string | null {
   if (typeof raw !== 'string') return null;
   const trimmed = raw.trim();
   if (trimmed.length === 0 || trimmed.length > MAX_CONCEPT_LENGTH) return null;
@@ -158,7 +158,7 @@ const VALID_STRATEGIES = new Set<Strategy>([
   'relationship',
 ]);
 
-function validateBlueprint(value: unknown): Blueprint {
+export function validateBlueprint(value: unknown): Blueprint {
   if (typeof value !== 'object' || value === null) throw new Error('Blueprint must be an object');
   const bp = value as Record<string, unknown>;
   if (typeof bp.title !== 'string' || !bp.title.trim()) throw new Error('Blueprint title is required');
@@ -178,7 +178,7 @@ function validateBlueprint(value: unknown): Blueprint {
   return value as Blueprint;
 }
 
-function parseModelJson(text: string): unknown {
+export function parseModelJson(text: string): unknown {
   const cleaned = text
     .replace(/^```json\s*/i, '')
     .replace(/^```\s*/i, '')

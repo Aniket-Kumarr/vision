@@ -258,6 +258,7 @@ export default function WelcomePage() {
         </motion.div>
 
         <motion.div
+<<<<<<< HEAD
           className="welcome-latex-link"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -410,15 +411,25 @@ export default function WelcomePage() {
           <p className="welcome-foot">
             You can switch subjects any time from the top bar.
           </p>
-          <button
-            type="button"
-            className="ghost-btn"
-            onClick={() => router.push('/challenge')}
-            style={{ fontSize: 13, opacity: 0.65 }}
-            aria-label="Open challenge mode"
-          >
-            Challenge mode →
-          </button>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
+            <button
+              type="button"
+              className="ghost-btn"
+              onClick={() => router.push('/challenge')}
+              style={{ fontSize: 13, opacity: 0.65 }}
+              aria-label="Open challenge mode"
+            >
+              Challenge mode →
+            </button>
+            <button
+              type="button"
+              className="ghost-btn"
+              onClick={() => router.push('/compare')}
+              style={{ fontSize: 13, opacity: 0.6 }}
+            >
+              Compare Models →
+            </button>
+          </div>
         </motion.div>
       </div>
     </main>
