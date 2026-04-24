@@ -39,6 +39,8 @@ export interface ChalkCanvasHandle {
   playDrawing: (drawing: Drawing, onComplete: () => void) => void;
   reset: () => void;
   saveState: () => ImageData | null;
+  /** Returns the raw HTMLCanvasElement for capture (e.g. captureStream / export). */
+  getHTMLCanvas: () => HTMLCanvasElement | null;
 }
 
 interface ChalkCanvasProps {
@@ -219,6 +221,7 @@ const ChalkCanvas = forwardRef<ChalkCanvasHandle, ChalkCanvasProps>(
           const { pw, ph } = physicalSize();
           return ctx.getImageData(0, 0, pw, ph);
         },
+        getHTMLCanvas: () => canvasRef.current,
       }),
       [playDrawing, reset, getCtx, physicalSize]
     );

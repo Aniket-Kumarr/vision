@@ -4,21 +4,25 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3000",
+    "prebuild": "cp node_modules/gif.js/dist/gif.worker.js public/gif.worker.js",
     "build": "next build",
     "start": "next start -p 3000",
-    "lint": "next lint"
+    "lint": "next lint",
+    "postinstall": "cp node_modules/gif.js/dist/gif.worker.js public/gif.worker.js 2>/dev/null || true"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.1",
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.6.0",
     "framer-motion": "^12.38.0",
+    "gif.js": "^0.2.0",
     "next": "15.1.11",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "three": "^0.184.0"
   },
   "devDependencies": {
+    "@types/gif.js": "^0.2.5",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

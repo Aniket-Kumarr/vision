@@ -6,12 +6,14 @@ import dynamic from 'next/dynamic';
 import type { ChalkCanvasHandle } from '@/components/ChalkCanvas';
 import StepController from '@/components/StepController';
 import ChalkParticles from '@/components/ChalkParticles';
+import ExportButton from '@/components/ExportButton';
 import { Blueprint, Drawing } from '@/lib/types';
 import { VISUA_AI_CONCEPT_KEY, VISUA_AI_SUBJECT_KEY, VISUA_AI_TOPIC_KEY } from '@/lib/auth';
 import { addLesson, takeReplay } from '@/lib/lessonHistory';
 import { extractExpressionsFromBlueprint } from '@/lib/desmos';
 import { encodeBlueprint } from '@/lib/shareLink';
 import { addCards } from '@/lib/quizDeck';
+import { useExport } from '@/hooks/useExport';
 
 const ChalkCanvas = dynamic(() => import('@/components/ChalkCanvas'), { ssr: false });
 const DesmosPanel = dynamic(() => import('@/components/DesmosPanel'), { ssr: false });
@@ -698,6 +700,20 @@ export default function CanvasPage() {
     };
   }, []);
 
+  // Export feature
+  const {
+    status: exportStatus,
+    format: exportFormat,
+    progress: exportProgress,
+    startExport,
+    cancel: cancelExport,
+  } = useExport({
+    canvasRef,
+    getHTMLCanvas: useCallback(() => canvasRef.current?.getHTMLCanvas() ?? null, []),
+    blueprint,
+    onStartReplay: handleRestart,
+  });
+
   // Keyboard shortcuts: use refs to avoid re-registering on every state change
   const handleNextRef = useRef(handleNext);
   const handleRestartRef = useRef(handleRestart);
@@ -955,6 +971,14 @@ export default function CanvasPage() {
                 </div>
               )}
             </div>
+            <ExportButton
+              status={exportStatus}
+              format={exportFormat}
+              progress={exportProgress}
+              onExport={startExport}
+              onCancel={cancelExport}
+              disabled={isAnimating || exportStatus === 'recording' || exportStatus === 'encoding'}
+            />
             <button
               onClick={handleHome}
               className="hover:opacity-100 transition-opacity"
