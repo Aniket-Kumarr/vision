@@ -5,9 +5,16 @@ import type { Blueprint } from '@/lib/types';
  * the bits we actually call — the real API is larger.
  */
 export interface DesmosCalculator {
-  setExpression: (opts: { id: string; latex: string; color?: string }) => void;
+  setExpression: (opts: {
+    id: string;
+    latex: string;
+    color?: string;
+    hidden?: boolean;
+    sliderBounds?: { min?: string | number; max?: string | number; step?: string | number };
+  }) => void;
   setExpressions?: (exprs: Array<{ id: string; latex: string }>) => void;
   setMathBounds: (bounds: { left: number; right: number; bottom: number; top: number }) => void;
+  removeExpression?: (opts: { id: string }) => void;
   destroy: () => void;
 }
 

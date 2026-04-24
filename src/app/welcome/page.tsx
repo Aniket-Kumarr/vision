@@ -161,6 +161,9 @@ export default function WelcomePage() {
               </span>
             )}
           </Link>
+          <Link href="/desmos-lab" className="ghost-btn" style={{ textDecoration: 'none' }}>
+            Desmos Lab
+          </Link>
           {user.picture ? (
             <Image src={user.picture} alt="" width={32} height={32} className="avatar" />
           ) : null}
