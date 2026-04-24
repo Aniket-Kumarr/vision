@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { FIXTURES, MATH_FIXTURES, CHEM_FIXTURES, BIO_FIXTURES, MUSIC_FIXTURES, CS_FIXTURES } from '@/lib/fixtures';
-import { Blueprint, Domain, Strategy } from '@/lib/types';
+import { Blueprint, Domain, Strategy, DifficultyLevel } from '@/lib/types';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -83,6 +83,8 @@ export function buildSystemPrompt(subject: Subject): string {
   else if (subject === 'cs') intro = CS_INTRO;
   else intro = MATH_INTRO;
   return `${intro}
+
+Adapt the narration style to the target audience. Use different language complexity and intuitive depth based on the specified difficulty level.
 
 Output ONLY a raw valid JSON object. No markdown. No backticks. No explanation. Just the JSON.
 
@@ -240,6 +242,17 @@ export function validateBlueprint(value: unknown): Blueprint {
   return value as Blueprint;
 }
 
+export function getDifficultyLevelSuffix(level: DifficultyLevel): string {
+  const suffixes: Record<DifficultyLevel, string> = {
+    kid: 'Target audience: 8-year-old child — use simple words, everyday analogies, and lots of visual excitement. No formulas. Focus on wonder and intuition.',
+    student: 'Target audience: high school student — use accessible language with some technical terms, basic formulas, and clear step-by-step logic.',
+    college: 'Target audience: college undergraduate — use precise mathematical/scientific terms, explain the why and how with rigor, include key formulas.',
+    grad: 'Target audience: graduate student — assume strong background, use advanced terminology, emphasize conceptual depth, proofs and derivations welcome.',
+    researcher: 'Target audience: research mathematician/physicist — use rigorous notation, assume full technical fluency, focus on deep insights and generalizations.',
+  };
+  return suffixes[level];
+}
+
 export function parseModelJson(text: string): unknown {
   const cleaned = text
     .replace(/^```json\s*/i, '')
@@ -249,10 +262,11 @@ export function parseModelJson(text: string): unknown {
   return JSON.parse(cleaned);
 }
 
-async function generateWithClaude(concept: string, subject: Subject): Promise<Blueprint> {
+async function generateWithClaude(concept: string, subject: Subject, level: DifficultyLevel = 'college'): Promise<Blueprint> {
   let lastErr: unknown = null;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
+      const difficultyPrompt = getDifficultyLevelSuffix(level);
       const response = await client.messages.create({
         model: GENERATION_MODEL,
         max_tokens: 4096,
@@ -260,7 +274,7 @@ async function generateWithClaude(concept: string, subject: Subject): Promise<Bl
         messages: [
           {
             role: 'user',
-            content: `Create a visual chalk explanation (${subject} subject) for: "${concept}"`,
+            content: `Create a visual chalk explanation (${subject} subject) for: "${concept}"\n\n${difficultyPrompt}`,
           },
         ],
       });
@@ -312,6 +326,10 @@ export async function POST(req: NextRequest) {
                 ? 'cs'
                 : 'math';
 
+    const levelRaw = body?.level;
+    const validLevels = new Set<DifficultyLevel>(['kid', 'student', 'college', 'grad', 'researcher']);
+    const level: DifficultyLevel = validLevels.has(levelRaw as DifficultyLevel) ? (levelRaw as DifficultyLevel) : 'college';
+
     // Optional: force fixtures only (no API), useful for offline demos.
     // Set VISUA_AI_USE_FIXTURES_ONLY=1 in .env.local
     if (process.env.VISUA_AI_USE_FIXTURES_ONLY === '1') {
@@ -340,7 +358,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const blueprint = await generateWithClaude(concept, subject);
+    const blueprint = await generateWithClaude(concept, subject, level);
     return NextResponse.json({ blueprint });
   } catch (err) {
     // SECURITY: never reflect raw Error.message to the client; it can contain

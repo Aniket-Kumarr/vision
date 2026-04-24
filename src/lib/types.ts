@@ -14,6 +14,16 @@ export const CHALK_COLORS: Record<ChalkColor, string> = {
 export type Domain = 'algebra' | 'geometry' | 'trigonometry' | 'calculus' | 'statistics' | 'linear_algebra';
 export type Strategy = 'decomposition' | 'transformation' | 'accumulation' | 'relationship';
 
+export type DifficultyLevel = 'kid' | 'student' | 'college' | 'grad' | 'researcher';
+
+export const DIFFICULTY_LABELS: Record<DifficultyLevel, string> = {
+  kid: 'Kid (age 8)',
+  student: 'Student (high school)',
+  college: 'College (undergrad)',
+  grad: 'Grad (master\'s)',
+  researcher: 'Researcher',
+};
+
 // ---------------------------------------------------------------------------
 // Per-drawing-type parameter shapes
 // ---------------------------------------------------------------------------

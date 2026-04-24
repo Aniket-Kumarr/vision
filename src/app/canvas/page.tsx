@@ -381,10 +381,22 @@ export default function CanvasPage() {
       }
     })();
 
+    const activeDifficulty = (() => {
+      try {
+        const d = localStorage.getItem('visua_ai_difficulty');
+        if (d === 'kid' || d === 'student' || d === 'college' || d === 'grad' || d === 'researcher') {
+          return d;
+        }
+        return 'college';
+      } catch {
+        return 'college';
+      }
+    })();
+
     fetch('/api/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ concept: saved, subject: activeSubject }),
+      body: JSON.stringify({ concept: saved, subject: activeSubject, level: activeDifficulty }),
       signal: controller.signal,
     })
       .then(async (r) => {

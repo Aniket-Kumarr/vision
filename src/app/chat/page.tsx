@@ -8,6 +8,7 @@ import ChalkParticles from '@/components/ChalkParticles';
 import PhysicsDoodles from '@/components/PhysicsDoodles';
 import SuggestionChips from '@/components/SuggestionChips';
 import VoiceInputButton from '@/components/VoiceInputButton';
+import DifficultySlider from '@/components/DifficultySlider';
 import {
   VISUA_AI_CONCEPT_KEY,
   VISUA_AI_SUBJECT_KEY,
@@ -15,6 +16,7 @@ import {
   VISUA_AI_USER_KEY,
   type VisuaAiUser,
 } from '@/lib/auth';
+import { type DifficultyLevel } from '@/lib/types';
 import {
   displayTopicForUserConcept,
   promptForUserConcept,
@@ -296,6 +298,8 @@ function ChatPageInner() {
   const [user, setUser] = useState<VisuaAiUser | null>(null);
   const [concept, setConcept] = useState('');
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [difficultyLevel, setDifficultyLevel] = useState<DifficultyLevel>('college');
+  const [showDifficultyPicker, setShowDifficultyPicker] = useState(false);
 
   const subject: Subject = useMemo(() => {
     const q = searchParams.get('subject');
@@ -378,6 +382,13 @@ function ChatPageInner() {
         return;
       }
       setUser(JSON.parse(raw) as VisuaAiUser);
+
+      // Load difficulty level from localStorage
+      const savedLevel = localStorage.getItem('visua_ai_difficulty');
+      if (savedLevel === 'kid' || savedLevel === 'student' || savedLevel === 'college' ||
+          savedLevel === 'grad' || savedLevel === 'researcher') {
+        setDifficultyLevel(savedLevel as DifficultyLevel);
+      }
     } catch {
       router.replace('/');
     }
@@ -396,6 +407,7 @@ function ChatPageInner() {
     if (!prompt || isTransitioning) return;
     localStorage.setItem(VISUA_AI_CONCEPT_KEY, prompt);
     localStorage.setItem(VISUA_AI_TOPIC_KEY, topic);
+    localStorage.setItem('visua_ai_difficulty', difficultyLevel);
     setIsTransitioning(true);
     window.setTimeout(() => router.push('/canvas'), 380);
   };
@@ -518,6 +530,15 @@ function ChatPageInner() {
                       ? 'CS'
                       : 'Math'}
           </span>
+          <button
+            type="button"
+            className="difficulty-level-pill"
+            onClick={() => setShowDifficultyPicker(!showDifficultyPicker)}
+            aria-label="Change explanation difficulty level"
+            title="Change explanation difficulty level"
+          >
+            <span>Level: {difficultyLevel.charAt(0).toUpperCase() + difficultyLevel.slice(1)}</span>
+          </button>
         </div>
         <div className="chat-session-nav-right">
           <button
@@ -609,6 +630,27 @@ function ChatPageInner() {
           </div>
 
           <p className="prompt-label">What do you want to understand?</p>
+
+          {showDifficultyPicker ? (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="difficulty-picker-wrapper"
+            >
+              <DifficultySlider
+                initialLevel={difficultyLevel}
+                onChangeLevel={(level) => {
+                  setDifficultyLevel(level);
+                  try {
+                    localStorage.setItem('visua_ai_difficulty', level);
+                  } catch {
+                    // ignore
+                  }
+                }}
+              />
+            </motion.div>
+          ) : null}
 
           {scopeBanner ? (
             <div
