@@ -11,6 +11,7 @@ import { VISUA_AI_CONCEPT_KEY, VISUA_AI_SUBJECT_KEY, VISUA_AI_TOPIC_KEY } from '
 import { addLesson, takeReplay } from '@/lib/lessonHistory';
 import { extractExpressionsFromBlueprint } from '@/lib/desmos';
 import { encodeBlueprint } from '@/lib/shareLink';
+import { addCards } from '@/lib/quizDeck';
 
 const ChalkCanvas = dynamic(() => import('@/components/ChalkCanvas'), { ssr: false });
 const DesmosPanel = dynamic(() => import('@/components/DesmosPanel'), { ssr: false });
@@ -571,17 +572,41 @@ export default function CanvasPage() {
     router.push(subject === 'math' || subject === 'physics' ? `/chat?subject=${subject}` : '/chat');
   }, [router]);
 
+  /** Fire-and-forget quiz card generation when the last step completes. */
+  const generateQuizCards = useCallback(
+    (bp: Blueprint, conceptTitle: string) => {
+      fetch('/api/quiz-cards', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ blueprint: bp }),
+      })
+        .then(async (r) => {
+          if (!r.ok) return;
+          const data = (await r.json()) as { cards?: Array<{ id: string; front: string; back: string }> };
+          if (!Array.isArray(data.cards) || data.cards.length === 0) return;
+          addCards(data.cards, conceptTitle);
+          setQuizBadge(data.cards.length);
+        })
+        .catch((err) => {
+          console.warn('[Visua AI] quiz card generation failed (non-blocking):', err);
+        });
+    },
+    [],
+  );
+
   const handleNext = useCallback(() => {
     if (!blueprint || isAnimating) return;
     const isLast = currentStepIndex >= blueprint.steps.length - 1;
     if (isLast) {
+      // Trigger quiz card generation in the background before navigating
+      generateQuizCards(blueprint, blueprint.title);
       handleHome();
       return;
     }
     const nextIdx = currentStepIndex + 1;
     setCurrentStepIndex(nextIdx);
     playStep(nextIdx, blueprint);
-  }, [blueprint, currentStepIndex, isAnimating, playStep, handleHome]);
+  }, [blueprint, currentStepIndex, isAnimating, playStep, handleHome, generateQuizCards]);
 
   const handlePrevStep = useCallback(() => {
     if (!blueprint || isAnimating || currentStepIndex <= 0) return;
@@ -614,6 +639,8 @@ export default function CanvasPage() {
     }
     setTimeout(() => setShareToast(null), 2500);
   }, [blueprint]);
+
+  const [quizBadge, setQuizBadge] = useState<number | null>(null);
 
   const [isDesmosOpen, setIsDesmosOpen] = useState(false);
   const desmosExpressions = useMemo(
@@ -971,6 +998,56 @@ export default function CanvasPage() {
           isFollowUpPending={isFollowUpPending}
           followUpError={followUpError}
         />
+      )}
+
+      {/* Quiz badge — shown when cards have just been added */}
+      {quizBadge !== null && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: 120,
+            right: 20,
+            zIndex: 30,
+            background: 'rgba(127,217,127,0.15)',
+            border: '1px solid rgba(127,217,127,0.4)',
+            borderRadius: 10,
+            padding: '8px 14px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            fontFamily: "'Inter', sans-serif",
+            fontSize: 13,
+            color: 'rgba(127,217,127,0.9)',
+          }}
+        >
+          <span>+{quizBadge} added to review</span>
+          <a
+            href="/review"
+            style={{
+              color: 'rgba(127,217,127,0.9)',
+              textDecoration: 'underline',
+              fontSize: 12,
+              letterSpacing: '0.04em',
+            }}
+          >
+            Review →
+          </a>
+          <button
+            onClick={() => setQuizBadge(null)}
+            aria-label="Dismiss"
+            style={{
+              background: 'transparent',
+              border: 'none',
+              cursor: 'pointer',
+              color: 'rgba(127,217,127,0.6)',
+              fontSize: 14,
+              lineHeight: 1,
+              padding: '0 2px',
+            }}
+          >
+            ×
+          </button>
+        </div>
       )}
 
       {/* Subtle noise overlay */}

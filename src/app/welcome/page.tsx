@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
 import ChalkParticles from '@/components/ChalkParticles';
 import { VISUA_AI_SUBJECT_KEY, VISUA_AI_USER_KEY, type VisuaAiUser } from '@/lib/auth';
+import { listDue } from '@/lib/quizDeck';
 
 const WARM_CHALK_DUST: [number, number, number][] = [
   [192, 90, 40],
@@ -28,6 +30,7 @@ type Subject = 'math' | 'physics';
 export default function WelcomePage() {
   const router = useRouter();
   const [user, setUser] = useState<VisuaAiUser | null>(null);
+  const [dueCount, setDueCount] = useState(0);
 
   useEffect(() => {
     try {
@@ -42,6 +45,11 @@ export default function WelcomePage() {
       router.replace('/');
     }
   }, [router]);
+
+  // Load due card count (SSR-safe — runs only in browser after mount)
+  useEffect(() => {
+    setDueCount(listDue().length);
+  }, []);
 
   const firstName = user?.name?.split(' ')[0] ?? 'there';
 
@@ -86,6 +94,37 @@ export default function WelcomePage() {
       >
         <span className="chat-session-logo">Visua AI</span>
         <div className="chat-session-nav-right">
+          <Link
+            href="/review"
+            style={{
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 13,
+              color: 'rgba(245,240,232,0.6)',
+              textDecoration: 'none',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              letterSpacing: '0.03em',
+            }}
+          >
+            Review
+            {dueCount > 0 && (
+              <span
+                style={{
+                  background: 'rgba(127,217,127,0.2)',
+                  border: '1px solid rgba(127,217,127,0.45)',
+                  borderRadius: 10,
+                  padding: '1px 7px',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: 'rgba(127,217,127,0.9)',
+                  lineHeight: '16px',
+                }}
+              >
+                {dueCount}
+              </span>
+            )}
+          </Link>
           {user.picture ? (
             <Image src={user.picture} alt="" width={32} height={32} className="avatar" />
           ) : null}
