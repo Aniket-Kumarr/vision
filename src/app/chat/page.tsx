@@ -541,15 +541,16 @@ function ChatPageInner() {
           throw new Error(data.error ?? 'No blueprint returned.');
         }
 
-        // Hand off exactly like the typed-concept path: stash the replay
-        // so /canvas renders without hitting /api/generate again.
-        setReplay(data.blueprint);
         const topic = (data.blueprint.title || 'Image lesson').slice(0, 120);
         // Persist a minimal concept string for downstream screens (history,
         // follow-up questions) that read it from localStorage.
         const storedConcept = hint
           ? `Image upload — ${hint}`
           : `Image upload — ${topic}`;
+        // Hand off exactly like the typed-concept path: stash the replay
+        // so /canvas renders without hitting /api/generate again. The stash
+        // is keyed by concept so /canvas knows it belongs to this lesson.
+        setReplay(storedConcept, data.blueprint);
         startLesson(topic, storedConcept);
       } catch (err) {
         const message = err instanceof Error && err.message ? err.message : 'Upload failed.';

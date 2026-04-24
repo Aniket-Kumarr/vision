@@ -118,7 +118,11 @@ export default function HistoryPage() {
       localStorage.setItem(VISUA_AI_CONCEPT_KEY, concept);
       localStorage.setItem(VISUA_AI_TOPIC_KEY, topic);
       localStorage.setItem(VISUA_AI_SUBJECT_KEY, subject);
-      setReplay(lesson.blueprint);
+      // Blueprint is optional on legacy entries written before we persisted it.
+      // When missing, /canvas will just re-generate from the concept.
+      if (lesson.blueprint) {
+        setReplay(concept, lesson.blueprint);
+      }
     } catch {
       /* ignore storage errors */
     }

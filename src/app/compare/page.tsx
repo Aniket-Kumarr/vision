@@ -250,13 +250,14 @@ export default function ComparePage() {
         'visua_ai_favorite_lesson',
         JSON.stringify({ model: result.model, blueprint: result.blueprint }),
       );
-      // Stash blueprint for canvas replay (same pattern as chat → canvas)
-      // We import addLesson dynamically to avoid SSR issues.
+      // Stash blueprint for canvas replay (same pattern as chat → canvas).
+      // Keyed by concept so /canvas reads it only for this lesson.
+      const storedConcept = concept.trim();
       import('@/lib/lessonHistory').then(({ setReplay }) => {
-        setReplay(result.blueprint!);
+        setReplay(storedConcept, result.blueprint!);
         // Also set the concept key so canvas page doesn't redirect away
         try {
-          localStorage.setItem('visua_ai_concept', concept.trim());
+          localStorage.setItem('visua_ai_concept', storedConcept);
           localStorage.setItem('visua_ai_subject', subject);
         } catch {
           // ignore

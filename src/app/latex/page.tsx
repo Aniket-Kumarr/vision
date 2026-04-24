@@ -41,7 +41,8 @@ export default function LatexPage() {
       }
 
       // Stash the blueprint for /canvas to pick up instantly (no extra API call).
-      setReplay(data.blueprint);
+      // Keyed by concept so /canvas reads it only for this lesson.
+      setReplay(latex, data.blueprint);
 
       // Set concept/topic/subject so the canvas loading UI and history look right.
       try {
