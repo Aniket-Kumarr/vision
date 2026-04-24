@@ -1166,7 +1166,25 @@ export default function CanvasPage() {
     setSocraticState(null);
     pendingNextStepRef.current = null;
     const prevIdx = currentStepIndex - 1;
+
+    // Prefer restoring the snapshot captured BEFORE the current step ran —
+    // that bitmap already contains every earlier step's strokes, so blitting
+    // it instantly erases only the step we're leaving. No network request,
+    // no animation replay, and prior steps stay visible.
+    const beforeCurrent = stepSnapshotsRef.current.get(currentStepIndex);
+    if (beforeCurrent && canvasRef.current) {
+      canvasRef.current.restoreState(beforeCurrent);
+      setCurrentStepIndex(prevIdx);
+      setIsAnimating(false);
+      setCurrentNarration(blueprint.steps[prevIdx].narration);
+      return;
+    }
+
+    // Fallback: no snapshot (shouldn't happen in normal flow since playStep
+    // caches one before every step). Rebuild by resetting and replaying from
+    // the start up to prevIdx. Still no /api call.
     canvasRef.current?.reset();
+    stepSnapshotsRef.current.clear();
     setCurrentStepIndex(prevIdx);
     setCurrentNarration('');
     playStep(prevIdx, blueprint);
