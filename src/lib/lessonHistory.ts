@@ -119,3 +119,69 @@ export function takeReplay(): Blueprint | null {
     return null;
   }
 }
+
+/**
+ * Get lessons by ISO date string (YYYY-MM-DD in user's local timezone).
+ * Returns all lessons created on that calendar day.
+ */
+export function getLessonsByDate(isoDate: string): LessonHistoryItem[] {
+  const lessons = getLessons();
+  return lessons.filter((lesson) => {
+    const date = new Date(lesson.createdAt);
+    const localDateStr = date.toISOString().split('T')[0];
+    return localDateStr === isoDate;
+  });
+}
+
+/**
+ * Compute the current streak: number of consecutive calendar days (in user's local time)
+ * with ≥1 lesson, ending today or yesterday.
+ * - If today has lessons: streak ends today.
+ * - Else if yesterday has lessons: streak ends yesterday, still counts.
+ * - Else: streak = 0.
+ */
+export function getCurrentStreak(): number {
+  const lessons = getLessons();
+  if (lessons.length === 0) return 0;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayStr = today.toISOString().split('T')[0];
+
+  // Check if today has any lessons
+  const todayLessons = lessons.filter((l) => {
+    const date = new Date(l.createdAt);
+    date.setHours(0, 0, 0, 0);
+    return date.toISOString().split('T')[0] === todayStr;
+  });
+
+  let streak = 0;
+  const checkDate = new Date(today);
+
+  // If today has lessons, start streak count from today; otherwise start from yesterday
+  if (todayLessons.length === 0) {
+    checkDate.setDate(checkDate.getDate() - 1);
+  } else {
+    streak = 1;
+    checkDate.setDate(checkDate.getDate() - 1);
+  }
+
+  // Walk backwards through days, counting consecutive days with ≥1 lesson
+  while (checkDate.getTime() <= today.getTime()) {
+    const dateStr = checkDate.toISOString().split('T')[0];
+    const dayLessons = lessons.filter((l) => {
+      const date = new Date(l.createdAt);
+      date.setHours(0, 0, 0, 0);
+      return date.toISOString().split('T')[0] === dateStr;
+    });
+
+    if (dayLessons.length === 0) {
+      break; // Streak broken
+    }
+
+    streak++;
+    checkDate.setDate(checkDate.getDate() - 1);
+  }
+
+  return streak;
+}

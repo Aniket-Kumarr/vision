@@ -75,6 +75,7 @@ import {
   removeLesson,
   setReplay,
 } from '@/lib/lessonHistory';
+import StreakBadge from '@/components/StreakBadge';
 
 /** Image upload constraints — kept in sync with /api/generate-from-image. */
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
@@ -745,6 +746,7 @@ function ChatPageInner() {
           <PersonaPicker value={persona} onChange={setPersona} compact />
         </div>
         <div className="chat-session-nav-right">
+          <StreakBadge />
           <button
             type="button"
             className="ghost-btn"

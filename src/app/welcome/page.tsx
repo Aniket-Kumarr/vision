@@ -16,6 +16,7 @@ import {
 import { listDue } from '@/lib/quizDeck';
 import PersonaPicker, { readStoredPersona } from '@/components/PersonaPicker';
 import { type Persona } from '@/lib/types';
+import StreakBadge from '@/components/StreakBadge';
 
 const WARM_CHALK_DUST: [number, number, number][] = [
   [192, 90, 40],
@@ -164,6 +165,7 @@ export default function WelcomePage() {
           <Link href="/desmos-lab" className="ghost-btn" style={{ textDecoration: 'none' }}>
             Desmos Lab
           </Link>
+          <StreakBadge />
           {user.picture ? (
             <Image src={user.picture} alt="" width={32} height={32} className="avatar" />
           ) : null}
