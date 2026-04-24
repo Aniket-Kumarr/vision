@@ -190,6 +190,22 @@ export default function WelcomePage() {
           </motion.button>
         </motion.div>
 
+        <motion.div
+          className="welcome-latex-link"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.65, duration: 0.5 }}
+        >
+          <button
+            type="button"
+            className="ghost-btn welcome-latex-btn"
+            onClick={() => router.push('/latex')}
+          >
+            Paste LaTeX <span aria-hidden>→</span>
+          </button>
+          <span className="welcome-latex-hint">Have an equation from a textbook? Visualize it directly.</span>
+        </motion.div>
+
         <motion.p
           className="welcome-foot"
           initial={{ opacity: 0 }}
