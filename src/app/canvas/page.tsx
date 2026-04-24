@@ -10,7 +10,7 @@ import ExportButton from '@/components/ExportButton';
 import { Blueprint, Drawing, Persona } from '@/lib/types';
 import { VISUA_AI_CONCEPT_KEY, VISUA_AI_SUBJECT_KEY, VISUA_AI_TOPIC_KEY } from '@/lib/auth';
 import { VISUA_AI_PERSONA_KEY } from '@/components/PersonaPicker';
-import { addLesson, takeReplay } from '@/lib/lessonHistory';
+import { addLesson, clearReplay, takeReplay } from '@/lib/lessonHistory';
 import { extractExpressionsFromBlueprint } from '@/lib/desmos';
 import { encodeBlueprint } from '@/lib/shareLink';
 import { addCards } from '@/lib/quizDeck';
@@ -819,8 +819,12 @@ export default function CanvasPage() {
     setErrorMsg('');
 
     // If the user re-opened a past lesson from history, /chat will have
-    // stashed the cached blueprint here — replay it instantly with no API call.
-    const cached = takeReplay();
+    // stashed the cached blueprint (keyed by concept). Replay it instantly
+    // with no API call. Because the stash is non-destructive and concept-
+    // matched, this survives React Strict Mode's double-effect in dev AND a
+    // hard refresh on /canvas — both of which previously caused the stash to
+    // be lost and /api/generate to fire, regenerating a different lesson.
+    const cached = takeReplay(saved);
     if (cached && Array.isArray(cached.steps) && cached.steps.length > 0) {
       setBlueprint(cached);
       setPageState('playing');
@@ -951,6 +955,10 @@ export default function CanvasPage() {
           }
         })();
         addLesson({ topic, concept: saved, blueprint: bp, subject: storedSubject });
+        // Clear any stale replay pointer left from a prior navigation so a
+        // later history click on a DIFFERENT concept is not accidentally
+        // satisfied by this freshly-generated stash.
+        clearReplay();
       })
       .catch((err) => {
         if (err.name === 'AbortError') {
