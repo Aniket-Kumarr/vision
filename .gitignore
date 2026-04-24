@@ -17,6 +17,7 @@ package-lock.json
 
 # misc
 .DS_Store
+Thumbs.db
 *.pem
 
 # debug
