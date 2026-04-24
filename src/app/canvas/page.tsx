@@ -10,6 +10,7 @@ import { Blueprint, Drawing } from '@/lib/types';
 import { VISUA_AI_CONCEPT_KEY, VISUA_AI_SUBJECT_KEY, VISUA_AI_TOPIC_KEY } from '@/lib/auth';
 import { addLesson, takeReplay } from '@/lib/lessonHistory';
 import { extractExpressionsFromBlueprint } from '@/lib/desmos';
+import { encodeBlueprint } from '@/lib/shareLink';
 
 const ChalkCanvas = dynamic(() => import('@/components/ChalkCanvas'), { ssr: false });
 const DesmosPanel = dynamic(() => import('@/components/DesmosPanel'), { ssr: false });
@@ -594,6 +595,26 @@ export default function CanvasPage() {
   const [isFollowUpPending, setIsFollowUpPending] = useState(false);
   const [followUpError, setFollowUpError] = useState<string | null>(null);
 
+  const [shareToast, setShareToast] = useState<string | null>(null);
+
+  const handleShare = useCallback(async () => {
+    if (!blueprint) return;
+    const result = await encodeBlueprint(blueprint);
+    if ('error' in result) {
+      setShareToast(result.error);
+      setTimeout(() => setShareToast(null), 3500);
+      return;
+    }
+    const url = `${window.location.origin}/s/${result.encoded}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setShareToast('Link copied!');
+    } catch {
+      setShareToast('Could not copy — try again.');
+    }
+    setTimeout(() => setShareToast(null), 2500);
+  }, [blueprint]);
+
   const [isDesmosOpen, setIsDesmosOpen] = useState(false);
   const desmosExpressions = useMemo(
     () => extractExpressionsFromBlueprint(blueprint, topicLabel || concept),
@@ -845,6 +866,68 @@ export default function CanvasPage() {
                 Play with it →
               </button>
             )}
+            {/* Share button */}
+            <div style={{ position: 'relative' }}>
+              <button
+                onClick={handleShare}
+                aria-label="Share lesson"
+                title="Share lesson"
+                className="hover:opacity-100 transition-opacity"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  background: 'rgba(245,240,232,0.06)',
+                  color: 'rgba(245,240,232,0.85)',
+                  border: '1px solid rgba(245,240,232,0.18)',
+                  borderRadius: 8,
+                  padding: '5px 12px',
+                  fontFamily: "'Inter', sans-serif",
+                  fontWeight: 400,
+                  fontSize: 13,
+                  letterSpacing: '0.04em',
+                  cursor: 'pointer',
+                }}
+              >
+                <svg
+                  viewBox="0 0 20 20"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden
+                  style={{ width: 16, height: 16, flexShrink: 0 }}
+                >
+                  {/* Arrow out of box (share icon) */}
+                  <path d="M10 3 L10 13" />
+                  <path d="M6.5 6.5 L10 3 L13.5 6.5" />
+                  <path d="M5 9 L3 9 L3 17 L17 17 L17 9 L15 9" />
+                </svg>
+                Share
+              </button>
+              {shareToast !== null && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 'calc(100% + 8px)',
+                    right: 0,
+                    background: 'rgba(20,20,20,0.95)',
+                    color: shareToast === 'Link copied!' ? 'rgba(127,253,239,0.95)' : 'rgba(255,200,200,0.95)',
+                    border: '1px solid rgba(245,240,232,0.15)',
+                    borderRadius: 8,
+                    padding: '7px 14px',
+                    fontFamily: "'Inter', sans-serif",
+                    fontSize: 13,
+                    whiteSpace: 'nowrap',
+                    pointerEvents: 'none',
+                    zIndex: 50,
+                  }}
+                >
+                  {shareToast}
+                </div>
+              )}
+            </div>
             <button
               onClick={handleHome}
               className="hover:opacity-100 transition-opacity"
