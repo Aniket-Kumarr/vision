@@ -206,14 +206,26 @@ export default function WelcomePage() {
           <span className="welcome-latex-hint">Have an equation from a textbook? Visualize it directly.</span>
         </motion.div>
 
-        <motion.p
-          className="welcome-foot"
+        <motion.div
+          className="welcome-foot-row"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.7, duration: 0.5 }}
+          style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}
         >
-          You can switch subjects any time from the top bar.
-        </motion.p>
+          <p className="welcome-foot">
+            You can switch subjects any time from the top bar.
+          </p>
+          <button
+            type="button"
+            className="ghost-btn"
+            onClick={() => router.push('/challenge')}
+            style={{ fontSize: 13, opacity: 0.65 }}
+            aria-label="Open challenge mode"
+          >
+            Challenge mode →
+          </button>
+        </motion.div>
       </div>
     </main>
   );
