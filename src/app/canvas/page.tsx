@@ -15,6 +15,7 @@ import { extractExpressionsFromBlueprint } from '@/lib/desmos';
 import { encodeBlueprint } from '@/lib/shareLink';
 import { addCards } from '@/lib/quizDeck';
 import { useExport } from '@/hooks/useExport';
+import { useStepNarration } from '@/hooks/useStepNarration';
 
 const ChalkCanvas = dynamic(() => import('@/components/ChalkCanvas'), { ssr: false });
 const DesmosPanel = dynamic(() => import('@/components/DesmosPanel'), { ssr: false });
@@ -461,67 +462,6 @@ function SocraticModal({ socraticState, onSubmitAnswer, onContinue, onSkip }: So
   );
 }
 
-/**
- * Fetch ElevenLabs MP3 narration via our /api/narrate proxy and play it.
- * - Aborts the previous request and stops playback on text change, mute, or unmount.
- * - Pauses when the tab is hidden, resumes on return.
- */
-function useNarration(text: string, enabled: boolean, voiceId: string) {
-  useEffect(() => {
-    if (!enabled || !text) return;
-    if (typeof window === 'undefined') return;
-
-    const ctrl = new AbortController();
-    const audio = new Audio();
-    let objectUrl: string | null = null;
-    let cancelled = false;
-
-    (async () => {
-      try {
-        const res = await fetch('/api/narrate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text, voiceId }),
-          signal: ctrl.signal,
-        });
-        if (!res.ok) {
-          const j = (await res.json().catch(() => ({}))) as { error?: string };
-          throw new Error(j.error || `narrate ${res.status}`);
-        }
-        if (cancelled) return;
-        const blob = await res.blob();
-        if (cancelled) return;
-        objectUrl = URL.createObjectURL(blob);
-        audio.src = objectUrl;
-        await audio.play();
-      } catch (err) {
-        if ((err as { name?: string }).name === 'AbortError') return;
-        console.error('[Visua AI] narrate failed:', err);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-      ctrl.abort();
-      audio.pause();
-      audio.src = '';
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
-  }, [text, enabled, voiceId]);
-
-  // Pause when tab hidden, resume on return.
-  useEffect(() => {
-    if (!enabled || typeof document === 'undefined') return;
-    const audios = () => Array.from(document.querySelectorAll('audio'));
-    const onVisibility = () => {
-      if (document.hidden) audios().forEach((a) => a.pause());
-      // Don't auto-resume — playback may have ended; let the next narration trigger naturally.
-    };
-    document.addEventListener('visibilitychange', onVisibility);
-    return () => document.removeEventListener('visibilitychange', onVisibility);
-  }, [enabled]);
-}
-
 interface VoiceControlProps {
   enabled: boolean;
   onToggle: () => void;
@@ -785,8 +725,11 @@ export default function CanvasPage() {
     toggleVoice();
   }, [ensureVoicesLoaded, toggleVoice]);
 
-  // Stream each step's narration through ElevenLabs when voice is enabled.
-  useNarration(currentNarration, voiceOn, voiceId);
+  // Stream each step's narration through ElevenLabs *while chalk is drawing*.
+  // currentNarration is set synchronously at the start of playStep (see below),
+  // so audio starts loading/playing concurrently with the animation rather
+  // than after it finishes.
+  useStepNarration(currentNarration, !!currentNarration, voiceId, voiceOn);
 
   // Load concept from localStorage, then fetch blueprint
   useEffect(() => {
@@ -1040,12 +983,13 @@ export default function CanvasPage() {
       }
 
       setIsAnimating(true);
-      setCurrentNarration('');
+      // Fire narration at the START so TTS plays CONCURRENTLY with chalk
+      // drawing (F31). useStepNarration reads this and kicks off fetch/play.
+      setCurrentNarration(step.narration);
 
       playDrawings(step.drawings, () => {
-        // Drawings done; now type narration
+        // Drawings done — narration may still be playing; that's fine.
         setIsAnimating(false);
-        setCurrentNarration(step.narration);
       });
     },
     [playDrawings]
