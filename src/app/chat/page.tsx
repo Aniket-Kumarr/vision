@@ -41,23 +41,11 @@ import {
   physicsPromptForUserConcept,
 } from '@/lib/physicsPrompts';
 import {
-  CHEMISTRY_SUGGESTION_CHIPS,
-  CHEMISTRY_SUGGESTION_TO_PROMPT,
-  displayChemistryTopicForUserConcept,
-  chemistryPromptForUserConcept,
-} from '@/lib/chemistryPrompts';
-import {
   BIOLOGY_SUGGESTION_CHIPS,
   BIOLOGY_SUGGESTION_TO_PROMPT,
   displayBiologyTopicForUserConcept,
   biologyPromptForUserConcept,
 } from '@/lib/biologyPrompts';
-import {
-  MUSIC_SUGGESTION_CHIPS,
-  MUSIC_SUGGESTION_TO_PROMPT,
-  displayMusicTopicForUserConcept,
-  musicPromptForUserConcept,
-} from '@/lib/musicPrompts';
 import {
   CS_SUGGESTION_CHIPS,
   CS_SUGGESTION_TO_PROMPT,
@@ -67,7 +55,7 @@ import {
 import { detectSubjectScope } from '@/lib/subjectScope';
 import type { Blueprint } from '@/lib/types';
 
-type Subject = 'math' | 'physics' | 'chemistry' | 'biology' | 'music' | 'cs';
+type Subject = 'math' | 'physics' | 'biology' | 'cs';
 import {
   type LessonHistoryItem,
   clearLessons,
@@ -351,10 +339,10 @@ function ChatPageInner() {
 
   const subject: Subject = useMemo(() => {
     const q = searchParams.get('subject');
-    if (q === 'math' || q === 'physics' || q === 'chemistry' || q === 'biology' || q === 'music' || q === 'cs') return q;
+    if (q === 'math' || q === 'physics' || q === 'biology' || q === 'cs') return q;
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem(VISUA_AI_SUBJECT_KEY);
-      if (stored === 'math' || stored === 'physics' || stored === 'chemistry' || stored === 'biology' || stored === 'music' || stored === 'cs') return stored as Subject;
+      if (stored === 'math' || stored === 'physics' || stored === 'biology' || stored === 'cs') return stored as Subject;
     }
     return 'math';
   }, [searchParams]);
@@ -375,51 +363,35 @@ function ChatPageInner() {
   const chips =
     subject === 'physics'
       ? PHYSICS_SUGGESTION_CHIPS
-      : subject === 'chemistry'
-        ? CHEMISTRY_SUGGESTION_CHIPS
-        : subject === 'biology'
-          ? BIOLOGY_SUGGESTION_CHIPS
-          : subject === 'music'
-            ? MUSIC_SUGGESTION_CHIPS
-            : subject === 'cs'
-              ? CS_SUGGESTION_CHIPS
-              : SUGGESTION_CHIPS;
+      : subject === 'biology'
+        ? BIOLOGY_SUGGESTION_CHIPS
+        : subject === 'cs'
+          ? CS_SUGGESTION_CHIPS
+          : SUGGESTION_CHIPS;
   const promptMap: Record<string, string> =
     subject === 'physics'
       ? PHYSICS_SUGGESTION_TO_PROMPT
-      : subject === 'chemistry'
-        ? CHEMISTRY_SUGGESTION_TO_PROMPT
-        : subject === 'biology'
-          ? BIOLOGY_SUGGESTION_TO_PROMPT
-          : subject === 'music'
-            ? MUSIC_SUGGESTION_TO_PROMPT
-            : subject === 'cs'
-              ? CS_SUGGESTION_TO_PROMPT
-              : SUGGESTION_TO_PROMPT;
+      : subject === 'biology'
+        ? BIOLOGY_SUGGESTION_TO_PROMPT
+        : subject === 'cs'
+          ? CS_SUGGESTION_TO_PROMPT
+          : SUGGESTION_TO_PROMPT;
   const genericPrompt =
     subject === 'physics'
       ? physicsPromptForUserConcept
-      : subject === 'chemistry'
-        ? chemistryPromptForUserConcept
-        : subject === 'biology'
-          ? biologyPromptForUserConcept
-          : subject === 'music'
-            ? musicPromptForUserConcept
-            : subject === 'cs'
-              ? csPromptForUserConcept
-              : promptForUserConcept;
+      : subject === 'biology'
+        ? biologyPromptForUserConcept
+        : subject === 'cs'
+          ? csPromptForUserConcept
+          : promptForUserConcept;
   const displayTopic =
     subject === 'physics'
       ? displayPhysicsTopicForUserConcept
-      : subject === 'chemistry'
-        ? displayChemistryTopicForUserConcept
-        : subject === 'biology'
-          ? displayBiologyTopicForUserConcept
-          : subject === 'music'
-            ? displayMusicTopicForUserConcept
-            : subject === 'cs'
-              ? displayCsTopicForUserConcept
-              : displayTopicForUserConcept;
+      : subject === 'biology'
+        ? displayBiologyTopicForUserConcept
+        : subject === 'cs'
+          ? displayCsTopicForUserConcept
+          : displayTopicForUserConcept;
 
   const firstName = useMemo(() => {
     if (!user?.name) return 'there';
@@ -716,7 +688,7 @@ function ChatPageInner() {
       <ChalkParticles
         count={22}
         colors={
-          subject === 'physics' || subject === 'chemistry'
+          subject === 'physics'
             ? LILAC_CHALK_DUST
             : subject === 'cs'
               ? GREEN_CHALK_DUST
@@ -726,7 +698,7 @@ function ChatPageInner() {
       />
 
       {/* Static decorative doodles in margins — swap with subject */}
-      {subject === 'physics' || subject === 'chemistry' || subject === 'biology' ? (
+      {subject === 'physics' || subject === 'biology' ? (
         <PhysicsDoodles />
       ) : (
         <ChatDoodles />
@@ -744,15 +716,11 @@ function ChatPageInner() {
           <span className="chat-subject-pill" aria-label={`Current subject: ${subject}`}>
             {subject === 'physics'
               ? 'Physics'
-              : subject === 'chemistry'
-                ? 'Chemistry'
-                : subject === 'biology'
-                  ? 'Biology'
-                  : subject === 'music'
-                    ? 'Music'
-                    : subject === 'cs'
-                      ? 'CS'
-                      : 'Math'}
+              : subject === 'biology'
+                ? 'Biology'
+                : subject === 'cs'
+                  ? 'CS'
+                  : 'Math'}
           </span>
           <button
             type="button"
@@ -838,15 +806,11 @@ function ChatPageInner() {
                   text={
                     subject === 'physics'
                       ? "I'm ready when you are. Ask about any topic — free-body diagrams, projectile motion, energy, waves, or something you're stuck on in class. You can also upload a photo of a problem."
-                      : subject === 'chemistry'
-                        ? "I'm ready when you are. Ask about any chemistry topic — orbital shapes, reaction mechanisms, titration curves, or something you're stuck on in class. You can also upload a photo."
-                        : subject === 'biology'
-                          ? "I'm ready when you are. Ask about any biology topic — action potentials, the Krebs cycle, Punnett squares, or something you're stuck on in class. You can also upload a photo."
-                          : subject === 'music'
-                            ? "I'm ready when you are. Ask about any music theory topic — circle of fifths, chord voicings, scales, modes, or something you're stuck on. You can also upload a photo."
-                            : subject === 'cs'
-                              ? "I'm ready when you are. Ask about any algorithm or data structure — bubble sort, BFS, recursion trees, hash tables, binary search, or anything you want to visualize. You can also upload a photo."
-                              : "I'm ready when you are. Ask about any topic — unit circle, derivatives, area puzzles, or something you're stuck on in class. You can also upload a photo of a problem."
+                      : subject === 'biology'
+                        ? "I'm ready when you are. Ask about any biology topic — action potentials, the Krebs cycle, Punnett squares, or something you're stuck on in class. You can also upload a photo."
+                        : subject === 'cs'
+                          ? "I'm ready when you are. Ask about any algorithm or data structure — bubble sort, BFS, recursion trees, hash tables, binary search, or anything you want to visualize. You can also upload a photo."
+                          : "I'm ready when you are. Ask about any topic — unit circle, derivatives, area puzzles, or something you're stuck on in class. You can also upload a photo of a problem."
                   }
                   startDelayMs={650}
                   charMs={14}
@@ -941,11 +905,9 @@ function ChatPageInner() {
                       ? 'math'
                       : scopeBanner.likelySubject === 'physics'
                         ? 'physics'
-                        : scopeBanner.likelySubject === 'chemistry'
-                          ? 'chemistry'
-                          : scopeBanner.likelySubject === 'biology'
-                            ? 'biology'
-                            : 'music'}
+                        : scopeBanner.likelySubject === 'biology'
+                          ? 'biology'
+                          : 'CS'}
                   </strong>{' '}
                   topic.
                 </p>
@@ -953,13 +915,11 @@ function ChatPageInner() {
                   You&apos;re currently in the{' '}
                   {subject === 'physics'
                     ? 'Physics'
-                    : subject === 'chemistry'
-                      ? 'Chemistry'
-                      : subject === 'biology'
-                        ? 'Biology'
-                        : subject === 'music'
-                          ? 'Music'
-                          : 'Math'}{' '}
+                    : subject === 'biology'
+                      ? 'Biology'
+                      : subject === 'cs'
+                        ? 'CS'
+                        : 'Math'}{' '}
                   workspace. Want to switch?
                 </p>
               </div>
@@ -970,11 +930,9 @@ function ChatPageInner() {
                     ? 'Math'
                     : scopeBanner.likelySubject === 'physics'
                       ? 'Physics'
-                      : scopeBanner.likelySubject === 'chemistry'
-                        ? 'Chemistry'
-                        : scopeBanner.likelySubject === 'biology'
-                          ? 'Biology'
-                          : 'Music'}{' '}
+                      : scopeBanner.likelySubject === 'biology'
+                        ? 'Biology'
+                        : 'CS'}{' '}
                   →
                 </button>
                 <button type="button" className="scope-banner-secondary" onClick={continueAnyway}>
@@ -1033,15 +991,11 @@ function ChatPageInner() {
                 placeholder={
                   subject === 'physics'
                     ? 'e.g. Why does a projectile travel in a parabola?'
-                    : subject === 'chemistry'
-                      ? 'e.g. How do sp3 orbitals create tetrahedral geometry?'
-                      : subject === 'biology'
-                        ? 'e.g. Walk me through the Krebs cycle'
-                        : subject === 'music'
-                          ? 'e.g. Explain the circle of fifths visually'
-                          : subject === 'cs'
-                            ? 'e.g. How does quicksort partition an array?'
-                            : 'e.g. Explain the unit circle intuitively'
+                    : subject === 'biology'
+                      ? 'e.g. Walk me through the Krebs cycle'
+                      : subject === 'cs'
+                        ? 'e.g. How does quicksort partition an array?'
+                        : 'e.g. Explain the unit circle intuitively'
                 }
                 className="prompt-input"
                 aria-label="Concept input"

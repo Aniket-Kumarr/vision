@@ -31,37 +31,6 @@ const MATH_KEYWORDS: RegExp[] = [
   /\bcombinator/i,
 ];
 
-const MUSIC_KEYWORDS: RegExp[] = [
-  /\bcircle of fifths?\b/i,
-  /\bpentatonic\b/i,
-  /\bchord\b/i,
-  /\btriad\b/i,
-  /\binterval\b/i,
-  /\bsemitone\b/i,
-  /\bmajor scale\b/i,
-  /\bminor scale\b/i,
-  /\bkey signature\b/i,
-  /\btime signature\b/i,
-  /\benharmonic\b/i,
-  /\bmode(s)?\b/i,
-  /\boctave\b/i,
-  /\bnote (value|duration)\b/i,
-  /\bstaff notation\b/i,
-  /\bmelody\b/i,
-  /\bharmony\b/i,
-  /\bcounterpoint\b/i,
-  /\barpeggio\b/i,
-  /\bchord inversion\b/i,
-  /\bperfect fifth\b/i,
-  /\bmusic theory\b/i,
-  /\bdorian\b/i,
-  /\bphrygian\b/i,
-  /\blydian\b/i,
-  /\bmixolydian\b/i,
-  /\baeolian\b/i,
-  /\blocrian\b/i,
-];
-
 const CS_KEYWORDS: RegExp[] = [
   /\bsorting algorithm/i,
   /\bbubble sort\b/i,
@@ -126,31 +95,12 @@ const PHYSICS_KEYWORDS: RegExp[] = [
   /\blongitudinal wave/i,
 ];
 
-export type Subject = 'math' | 'physics' | 'chemistry' | 'biology' | 'music' | 'cs';
+export type Subject = 'math' | 'physics' | 'biology' | 'cs';
 
 export interface SubjectScopeResult {
   likelySubject: Subject | null;
   mismatch: boolean;
 }
-
-const CHEMISTRY_KEYWORDS: RegExp[] = [
-  /\borbit(al)?s?\b/i,
-  /\bhybridiz/i,
-  /\bsp[123] ?\b/i,
-  /\btitrat/i,
-  /\breaction mechanism/i,
-  /\bnucleophil/i,
-  /\belectrophil/i,
-  /\bvalence\b/i,
-  /\bperiodic table\b/i,
-  /\bmolecular\b/i,
-  /\bchemical bond/i,
-  /\bstoichiometr/i,
-  /\bacid.?base\b/i,
-  /\bpH\b/,
-  /\bbuffer solution/i,
-  /\bequilibrium constant/i,
-];
 
 const BIOLOGY_KEYWORDS: RegExp[] = [
   /\baction potential\b/i,
@@ -182,12 +132,10 @@ export function detectSubjectScope(input: string, current: Subject): SubjectScop
 
   const isMath = MATH_KEYWORDS.some((re) => re.test(text));
   const isPhysics = PHYSICS_KEYWORDS.some((re) => re.test(text));
-  const isChemistry = CHEMISTRY_KEYWORDS.some((re) => re.test(text));
   const isBiology = BIOLOGY_KEYWORDS.some((re) => re.test(text));
-  const isMusic = MUSIC_KEYWORDS.some((re) => re.test(text));
   const isCs = CS_KEYWORDS.some((re) => re.test(text));
 
-  const matches = [isMath, isPhysics, isChemistry, isBiology, isMusic, isCs].filter(Boolean).length;
+  const matches = [isMath, isPhysics, isBiology, isCs].filter(Boolean).length;
   // Ambiguous (matches multiple) or none — don't flag.
   if (matches !== 1) return { likelySubject: null, mismatch: false };
 
@@ -195,12 +143,8 @@ export function detectSubjectScope(input: string, current: Subject): SubjectScop
     ? 'math'
     : isPhysics
       ? 'physics'
-      : isChemistry
-        ? 'chemistry'
-        : isBiology
-          ? 'biology'
-          : isMusic
-            ? 'music'
-            : 'cs';
+      : isBiology
+        ? 'biology'
+        : 'cs';
   return { likelySubject, mismatch: likelySubject !== current };
 }

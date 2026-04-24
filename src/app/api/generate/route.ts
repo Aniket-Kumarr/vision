@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
-import { FIXTURES, MATH_FIXTURES, CHEM_FIXTURES, BIO_FIXTURES, MUSIC_FIXTURES, CS_FIXTURES } from '@/lib/fixtures';
+import { FIXTURES, MATH_FIXTURES, BIO_FIXTURES, CS_FIXTURES } from '@/lib/fixtures';
 import { Blueprint, Domain, Persona, Strategy, DifficultyLevel } from '@/lib/types';
 
 // ---------------------------------------------------------------------------
@@ -20,7 +20,7 @@ const client = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
-export type Subject = 'math' | 'physics' | 'chemistry' | 'biology' | 'music' | 'cs';
+export type Subject = 'math' | 'physics' | 'biology' | 'cs';
 
 const MATH_INTRO = `You are a mathematical visualization engine for an interactive chalkboard animation app. Your job is to take any math concept and break it down into a step-by-step visual explanation that draws on a black chalkboard with colorful chalk.`;
 
@@ -28,30 +28,9 @@ const PHYSICS_INTRO = `You are a physics visualization engine for an interactive
 
 IMPORTANT: Only create physics lessons. If the topic is clearly a pure math topic with no physical interpretation (like "unit circle proof", "integration by parts", "derivative rules"), reframe it with a physical application — e.g. "unit circle" → circular motion; "derivative" → velocity as derivative of position; "integral" → work as integral of force. Every lesson must show a physical scenario, quantity, or phenomenon, not abstract math.`;
 
-const CHEMISTRY_INTRO = `You are a chemistry visualization engine for an interactive chalkboard animation app. Your job is to take any chemistry concept — molecular structures, orbital shapes, reaction mechanisms, energy diagrams, periodic trends, acid-base behavior — and break it down into a step-by-step visual explanation that draws on a black chalkboard with colorful chalk.
-
-Use the drawing primitives (line, circle, arc, text, arrow, shade, etc.) to render structural diagrams, orbital lobe shapes, curved reaction arrows showing electron flow, and energy diagrams with labeled axes. Focus on visual intuition: WHY molecules have the shapes they do, WHY reactions proceed as they do — not just symbolic equations.`;
-
 const BIOLOGY_INTRO = `You are a biology visualization engine for an interactive chalkboard animation app. Your job is to take any biology concept — cellular processes, organelles, metabolic cycles (Krebs, Calvin), genetics (Punnett squares, DNA), action potentials, ecology — and break it down into a step-by-step visual explanation that draws on a black chalkboard with colorful chalk.
 
 Use the drawing primitives (line, circle, arc, text, arrow, shade, etc.) to render process diagrams, labeled organelles, cycle arrows, membrane cross-sections, and population charts. Focus on the story: WHY the process works the way it does, what each step accomplishes biologically — not rote memorization.`;
-
-const MUSIC_INTRO = `You are a music theory visualization engine for an interactive chalkboard animation app. Your job is to take any music theory concept — intervals, scales, chords, modes, the circle of fifths, rhythm, staff notation — and break it down into a step-by-step VISUAL explanation drawn on a black chalkboard with colorful chalk.
-
-CRITICAL: This is a VISUAL medium — not audio. You draw diagrams, not play sounds. Use these drawing primitives:
-- Staff: 5 parallel horizontal lines drawn with the 'line' type, evenly spaced ~30px apart
-- Notes: small filled 'circle' (r≈10) placed on the correct line or space, plus a 'line' stem extending up or down
-- Time signature: 'text' type with stacked numbers at the staff start
-- Circle of fifths: 12 labeled 'point' primitives arranged around a 'circle' (cx≈400,cy≈300,r≈220)
-- Intervals: 'arc' spanning two notes + 'text' label for the interval name
-- Chords: stacked note circles on the same vertical position
-- Scales: note circles stepping upward left to right across the staff
-- Semitone number lines: a horizontal 'line' with 'point' and 'text' labels at each semitone position
-- Piano keyboard: 'rect' primitives for white keys, smaller filled 'rect' for black keys
-
-Use color purposefully: white for staff lines and base structures, yellow for key notes and formulas, green for results and answers, blue for secondary/supporting notes, orange for interval labels, cyan for scale degree numbers, red for tension notes or half-step markers.
-
-IMPORTANT: Only create music theory lessons. If the topic is not music theory, decline gracefully and suggest the correct subject.`;
 
 const CS_INTRO = `You are a computer science visualization engine for an interactive chalkboard animation app. Your job is to take any CS concept — sorting algorithms, graph traversal, recursion, data structures, hashing — and break it down into a step-by-step visual explanation that draws on a black chalkboard with colorful chalk.
 
@@ -77,9 +56,7 @@ Each step narration must explain the algorithmic intuition — WHY the algorithm
 export function buildSystemPrompt(subject: Subject): string {
   let intro: string;
   if (subject === 'physics') intro = PHYSICS_INTRO;
-  else if (subject === 'chemistry') intro = CHEMISTRY_INTRO;
   else if (subject === 'biology') intro = BIOLOGY_INTRO;
-  else if (subject === 'music') intro = MUSIC_INTRO;
   else if (subject === 'cs') intro = CS_INTRO;
   else intro = MATH_INTRO;
   return `${intro}
@@ -189,9 +166,7 @@ const MAX_FIXTURE_FUZZY_LEN = 140;
 const SUBJECT_FIXTURE_BANKS: Record<Subject, Record<string, Blueprint>> = {
   math: MATH_FIXTURES,
   physics: {},
-  chemistry: CHEM_FIXTURES,
   biology: BIO_FIXTURES,
-  music: MUSIC_FIXTURES,
   cs: CS_FIXTURES,
 };
 
@@ -369,15 +344,11 @@ export async function POST(req: NextRequest) {
     const subject: Subject =
       subjectRaw === 'physics'
         ? 'physics'
-        : subjectRaw === 'chemistry'
-          ? 'chemistry'
-          : subjectRaw === 'biology'
-            ? 'biology'
-            : subjectRaw === 'music'
-              ? 'music'
-              : subjectRaw === 'cs'
-                ? 'cs'
-                : 'math';
+        : subjectRaw === 'biology'
+          ? 'biology'
+          : subjectRaw === 'cs'
+            ? 'cs'
+            : 'math';
 
     const levelRaw = body?.level;
     const validLevels = new Set<DifficultyLevel>(['kid', 'student', 'college', 'grad', 'researcher']);

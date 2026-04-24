@@ -746,7 +746,7 @@ export default function CanvasPage() {
         }
       })();
       router.replace(
-        subj === 'math' || subj === 'physics' || subj === 'chemistry' || subj === 'biology' || subj === 'music' || subj === 'cs'
+        subj === 'math' || subj === 'physics' || subj === 'biology' || subj === 'cs'
           ? `/chat?subject=${subj}`
           : '/chat',
       );
@@ -780,7 +780,7 @@ export default function CanvasPage() {
     const activeSubject = (() => {
       try {
         const s = localStorage.getItem(VISUA_AI_SUBJECT_KEY);
-        return s === 'math' || s === 'physics' || s === 'chemistry' || s === 'biology' || s === 'music' || s === 'cs' ? s : 'math';
+        return s === 'math' || s === 'physics' || s === 'biology' || s === 'cs' ? s : 'math';
       } catch {
         return 'math';
       }
@@ -890,8 +890,8 @@ export default function CanvasPage() {
         const storedSubject = (() => {
           try {
             const s = localStorage.getItem(VISUA_AI_SUBJECT_KEY);
-            return s === 'math' || s === 'physics' || s === 'chemistry' || s === 'biology' || s === 'music' || s === 'cs'
-              ? (s as 'math' | 'physics' | 'chemistry' | 'biology' | 'music' | 'cs')
+            return s === 'math' || s === 'physics' || s === 'biology' || s === 'cs'
+              ? (s as 'math' | 'physics' | 'biology' | 'cs')
               : undefined;
           } catch {
             return undefined;
@@ -1030,7 +1030,7 @@ export default function CanvasPage() {
       // ignore
     }
     router.push(
-      subject === 'math' || subject === 'physics' || subject === 'chemistry' || subject === 'biology' || subject === 'music' || subject === 'cs'
+      subject === 'math' || subject === 'physics' || subject === 'biology' || subject === 'cs'
         ? `/chat?subject=${subject}`
         : '/chat',
     );

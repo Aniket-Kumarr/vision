@@ -7,7 +7,7 @@ const MAX_HISTORY = 50;
 /** Hard cap on serialized history size (~3.5 MB, leaves room under 5 MB origin quota). */
 const MAX_HISTORY_BYTES = 3_500_000;
 
-export type LessonSubject = 'math' | 'physics' | 'chemistry' | 'biology' | 'music' | 'cs';
+export type LessonSubject = 'math' | 'physics' | 'biology' | 'cs';
 
 export interface LessonHistoryItem {
   id: string;
@@ -30,9 +30,7 @@ function isHistoryItem(x: unknown): x is LessonHistoryItem {
     o.subject === undefined ||
     o.subject === 'math' ||
     o.subject === 'physics' ||
-    o.subject === 'chemistry' ||
     o.subject === 'biology' ||
-    o.subject === 'music' ||
     o.subject === 'cs';
   return (
     typeof o.id === 'string' &&

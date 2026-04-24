@@ -34,7 +34,7 @@ const fadeUp = {
   }),
 };
 
-type Subject = 'math' | 'physics' | 'chemistry' | 'biology' | 'music' | 'cs';
+type Subject = 'math' | 'physics' | 'biology' | 'cs';
 
 export default function WelcomePage() {
   const router = useRouter();
@@ -271,34 +271,9 @@ export default function WelcomePage() {
 
           <motion.button
             type="button"
-            className="welcome-card welcome-card-chemistry"
-            variants={fadeUp}
-            custom={2}
-            onClick={() => chooseSubject('chemistry')}
-            aria-label="Enter the chemistry workspace"
-          >
-            <div className="welcome-card-noise" aria-hidden />
-            <div className="welcome-card-inner">
-              <span className="welcome-card-kicker">Subject</span>
-              <h2 className="welcome-card-title">Chemistry</h2>
-              <p className="welcome-card-tagline">
-                orbitals, reactions, energy diagrams
-              </p>
-              <p className="welcome-card-desc">
-                Structural diagrams, orbital shapes, reaction arrows, and titration curves drawn
-                step by step on the chalkboard.
-              </p>
-              <span className="welcome-card-cta">
-                Start drawing <span aria-hidden>→</span>
-              </span>
-            </div>
-          </motion.button>
-
-          <motion.button
-            type="button"
             className="welcome-card welcome-card-biology"
             variants={fadeUp}
-            custom={3}
+            custom={2}
             onClick={() => chooseSubject('biology')}
             aria-label="Enter the biology workspace"
           >
@@ -321,34 +296,9 @@ export default function WelcomePage() {
 
           <motion.button
             type="button"
-            className="welcome-card welcome-card-music"
-            variants={fadeUp}
-            custom={4}
-            onClick={() => chooseSubject('music')}
-            aria-label="Enter the music theory workspace"
-          >
-            <div className="welcome-card-noise" aria-hidden />
-            <div className="welcome-card-inner">
-              <span className="welcome-card-kicker">Subject</span>
-              <h2 className="welcome-card-title">Music</h2>
-              <p className="welcome-card-tagline">
-                circle of fifths, chords, scales, modes
-              </p>
-              <p className="welcome-card-desc">
-                Staff notation, interval arcs, chord voicings, and the circle of fifths drawn step by
-                step. Theory made visual.
-              </p>
-              <span className="welcome-card-cta">
-                Start drawing <span aria-hidden>→</span>
-              </span>
-            </div>
-          </motion.button>
-
-          <motion.button
-            type="button"
             className="welcome-card welcome-card-cs"
             variants={fadeUp}
-            custom={5}
+            custom={3}
             onClick={() => chooseSubject('cs')}
             aria-label="Enter the computer science workspace"
           >
